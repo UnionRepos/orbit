@@ -41,7 +41,7 @@ import {
 } from '../lib/format.ts'
 import { renderMarkdown } from '../lib/markdown.ts'
 import { cacheRepo, cachedRepo } from '../lib/repoCache.ts'
-import { navigate, repoPath, userPath, type Route } from '../lib/router.ts'
+import { getLastFeedPath, navigate, repoPath, userPath, type Route } from '../lib/router.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
 import { RepoCard } from './RepoCard.tsx'
@@ -169,7 +169,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
   if (!repo) {
     return (
       <div className="page-narrow">
-        <button className="back-link" onClick={() => navigate('/')}>
+        <button className="back-link" onClick={() => navigate(getLastFeedPath())}>
           <ArrowLeft size={15} /> {t('common.back')}
         </button>
         <EmptyState
@@ -257,7 +257,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
 
   return (
     <div className="detail-page">
-      <button className="back-link" onClick={() => navigate('/')}>
+      <button className="back-link" onClick={() => navigate(getLastFeedPath())}>
         <ArrowLeft size={15} /> {t('common.back')}
       </button>
 

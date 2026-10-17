@@ -1,4 +1,4 @@
-import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from 'react'
 import { OrbitProvider } from './context/OrbitContext.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FeedPage } from './components/FeedPage.tsx'
@@ -9,7 +9,8 @@ import { AboutPage } from './components/AboutPage.tsx'
 import { CommandPalette } from './components/CommandPalette.tsx'
 import { Toasts } from './components/Toasts.tsx'
 import { I18nProvider, t, useI18n } from './i18n/index.ts'
-import { parseRoute, type Route } from './lib/router.ts'
+import { parseRoute, rememberFeedPath, type Route } from './lib/router.ts'
+import { recallScroll, routeScrollKey } from './lib/scrollMemory.ts'
 
 function useRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseRoute())
@@ -32,10 +33,17 @@ function useRoute(): Route {
 function AppShell() {
   const route = useRoute()
   const { locale, t } = useI18n()
+  const scrollKey = routeScrollKey(route)
+
+  // Reset the scroll only when the destination has no offset to restore; the
+  // feed restores its own offset once the list has rendered again.
+  useLayoutEffect(() => {
+    if (recallScroll(scrollKey) === undefined) window.scrollTo(0, 0)
+  }, [scrollKey])
 
   useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [route.path])
+    if (route.name === 'feed') rememberFeedPath(route.query)
+  }, [route])
 
   useEffect(() => {
     if (route.name === 'feed') document.title = t('app.title.feed')

@@ -16,10 +16,12 @@ import { CHANNELS } from '../../shared/channels.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
 import { useFeed } from '../hooks/useFeed.ts'
+import { useScrollRestore } from '../hooks/useScrollRestore.ts'
 import { useDialogFocus, useInView } from '../hooks/useUtils.ts'
 import { feedParamsFromRoute, patchFeedQuery, SORT_OPTIONS } from '../lib/feed.ts'
 import { compactNumber, fullNumber, relativeTime, timeUntil } from '../lib/format.ts'
 import { feedPath, navigate, repoPath, type Route } from '../lib/router.ts'
+import { routeScrollKey } from '../lib/scrollMemory.ts'
 import { EmptyState } from './EmptyState.tsx'
 import { FeedAside } from './FeedAside.tsx'
 import { ChannelIcon, FilterPanel } from './FilterPanel.tsx'
@@ -36,6 +38,11 @@ export function FeedPage({ route }: { route: Route }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetRef = useDialogFocus<HTMLDivElement>(sheetOpen)
   const meta = feed.meta
+  const scrollKey = useMemo(() => routeScrollKey(route), [route])
+
+  // Keep the discovery list scrolled where the user left it when they come
+  // back from a project page.
+  useScrollRestore(scrollKey, feed.status !== 'loading')
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -53,8 +60,7 @@ export function FeedPage({ route }: { route: Route }) {
   const apply = useCallback(
     (patch: FilterPatch) => {
       const next = patchFeedQuery(route.query, patch)
-      navigate(feedPath(next), { replace: true, scroll: false })
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      navigate(feedPath(next), { replace: true })
     },
     [route.query],
   )

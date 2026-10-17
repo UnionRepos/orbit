@@ -27,15 +27,21 @@ export function parseRoute(hash = window.location.hash): Route {
   return { name: 'feed', query, path: '/' }
 }
 
-export function navigate(path: string, options: { replace?: boolean; scroll?: boolean } = {}) {
+export function navigate(path: string, options: { replace?: boolean } = {}) {
   const target = `#${path.startsWith('/') ? path : `/${path}`}`
   if (options.replace) {
     window.history.replaceState(null, '', target)
     window.dispatchEvent(new Event('orbit:route'))
-  } else {
-    window.location.hash = target
-    if (options.scroll !== false) window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
   }
+  if (window.location.hash === target) {
+    // Re-selecting the current route should still return to the top of it.
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+  // Scroll resets are handled once the new route has rendered, so that the
+  // outgoing page keeps its real offset and can offer it back on return.
+  window.location.hash = target
 }
 
 export function repoPath(owner: string, name: string): string {
@@ -49,4 +55,16 @@ export function userPath(login: string): string {
 export function feedPath(query: URLSearchParams): string {
   const qs = query.toString()
   return qs ? `/?${qs}` : '/'
+}
+
+// Last discovery list the user looked at, so "back" from a detail page returns
+// to the same channel/filters instead of the unfiltered feed.
+let lastFeedPath = '/'
+
+export function rememberFeedPath(query: URLSearchParams): void {
+  lastFeedPath = feedPath(query)
+}
+
+export function getLastFeedPath(): string {
+  return lastFeedPath
 }

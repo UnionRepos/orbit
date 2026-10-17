@@ -17,7 +17,7 @@ import { getUser, type ApiError } from '../lib/api.ts'
 import { useI18n } from '../i18n/index.ts'
 import { compactNumber, dateLabel, monthYear } from '../lib/format.ts'
 import { cacheRepos } from '../lib/repoCache.ts'
-import { navigate, userPath, type Route } from '../lib/router.ts'
+import { getLastFeedPath, navigate, userPath, type Route } from '../lib/router.ts'
 import { EmptyState } from './EmptyState.tsx'
 import { RepoCard } from './RepoCard.tsx'
 import { GithubIcon } from './icons.tsx'
@@ -74,7 +74,7 @@ export function UserPage({ route }: { route: Route }) {
   if (error || !data) {
     return (
       <div className="page-narrow">
-        <button className="back-link" onClick={() => navigate('/')}>
+        <button className="back-link" onClick={() => navigate(getLastFeedPath())}>
           <ArrowLeft size={15} /> {t('common.back')}
         </button>
         <EmptyState
@@ -96,7 +96,7 @@ export function UserPage({ route }: { route: Route }) {
 
   return (
     <div className="profile-page">
-      <button className="back-link" onClick={() => navigate('/')}>
+      <button className="back-link" onClick={() => navigate(getLastFeedPath())}>
         <ArrowLeft size={15} /> {t('common.back')}
       </button>
 

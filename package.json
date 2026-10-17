@@ -22,8 +22,8 @@
     "hono",
     "vite"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "lemonhub-io",
+  "license": "MIT",
   "type": "module",
   "private": "true",
   "dependencies": {

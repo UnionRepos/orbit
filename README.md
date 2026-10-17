@@ -9,6 +9,10 @@ channels, momentum scoring, readable READMEs, and a local reading list.
 ![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)
 ![Hono](https://img.shields.io/badge/Hono-4-e36002?logo=hono&logoColor=white)
 
+[![CI](https://github.com/UnionRepos/orbit/actions/workflows/ci.yml/badge.svg)](https://github.com/UnionRepos/orbit/actions/workflows/ci.yml)
+[![Deploy](https://github.com/UnionRepos/orbit/actions/workflows/deploy.yml/badge.svg)](https://github.com/UnionRepos/orbit/actions/workflows/deploy.yml)
+[![Live](https://img.shields.io/badge/live-orbit.openhub.today-8b5cf6)](https://orbit.openhub.today)
+
 ## Features
 
 - **Six discovery channels** — Trending, Rising, Fresh, Hidden gems, Good first issues, and
@@ -145,3 +149,7 @@ relies on the `Cache-Control` headers for the edge cache.
 - README HTML is sanitized with DOMPurify; scripts, event handlers, forms, and inline styles are
   stripped before rendering.
 - Orbit is an independent project and is not affiliated with GitHub, Inc.
+
+## License
+
+[MIT](LICENSE) © [lemonhub-io](https://github.com/lemonhub-io)

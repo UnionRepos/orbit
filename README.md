@@ -262,13 +262,52 @@ stream. Lists, tables, code, links, images and reading position stay intact.
 
 Translations use Bilibili's [free Index-Translate public API](https://github.com/bilibili/Index-Translate),
 with `Index-Translate-35B-A3B` at
-`https://index-translate.bilibili.com/v1/chat/completions`. No API key or extra
-environment variables are required. Only README prose is sent to Bilibili through
-Orbit. Both the Node server and Cloudflare Worker support the streaming route.
+`https://index-translate.bilibili.com/v1/chat/completions`. Only README prose is
+sent to Bilibili through Orbit. Direct Node requests need no Bilibili API key.
+
+**Cloudflare deployments:** Bilibili can reject Cloudflare egress with HTTP 412
+and an HTML access-check page, even while the same request works from Node.
+Retries and smaller chunks cannot repair this connection. Orbit stops immediately
+and displays a connection-unavailable state for provider access rejections.
+
+Run the private translation relay on a Node 24+ server whose connection to Bilibili
+has been verified:
+
+```sh
+# Generate a secret and store it in your server's environment/secret manager.
+# Use the same value for the relay and the Worker; never put it in VITE_* variables.
+export TRANSLATION_RELAY_TOKEN='replace-with-your-random-secret-of-at-least-32-characters'
+npm run translation:relay
+```
+
+The relay listens on `127.0.0.1:8791` by default (`HOST` and `PORT` are optional).
+Run it under your process manager and expose it through your existing HTTPS
+reverse proxy or a persistent Cloudflare Tunnel. Preserve streaming responses,
+disable proxy buffering, and allow long-lived requests. Configure these Worker
+secrets before deploying:
+
+```sh
+npx wrangler secret put TRANSLATION_RELAY_URL
+# Enter the HTTPS relay origin, e.g. https://translation.example.com
+npx wrangler secret put TRANSLATION_RELAY_TOKEN
+# Enter the exact secret used by the Node relay.
+```
+
+The Worker forwards only the two translation POST routes, checks the browser's
+origin, and replaces browser cookies/credentials with the relay secret. The relay
+requires authentication for every route and accepts only bounded Orbit translation
+requests. Chunking, pacing, caches and retries run together on the Node server;
+validated SSE results are passed through without buffering. The relay is optional
+when the app itself runs on Node. Do not point the Worker back at Orbit's own URL.
+
+After deployment run `node scripts/smoke-translation.ts` against the live service.
+This checks an actual translation, rather than treating `/api/health` success as
+proof that the external provider works.
 
 The streaming endpoint `POST /api/translate/readme` accepts up to 1,200 uniquely
 indexed passages and 250,000 total characters, in a body limited to 1 MB. It emits
 `start`, `result`, `failed`, `waiting`, `unavailable`, `done`, and heartbeat events.
+`blocked` indicates a provider access/configuration rejection and is never retried.
 Temporary provider/network failures receive at most two paced retries in the
 server workflow. A sustained outage stops with explicit resumable state instead
 of marking every remaining paragraph failed or looping forever. Returning online

@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "start": "node server/index.ts",
+    "translation:relay": "node server/translation-relay.ts",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "worker:dev": "wrangler dev",

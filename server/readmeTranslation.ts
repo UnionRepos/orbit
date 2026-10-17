@@ -1,7 +1,7 @@
 import { isTranslationLanguage, type ReadmeTranslationEvent, type ReadmeTranslationRequest } from '../shared/translation.ts'
 import { joinTranslationPieces, splitTranslationText } from '../shared/translationChunks.ts'
 import { fitsTranslationBudget, translationQualityIssue } from './translationQuality.ts'
-import { TranslationError, TranslationQualityError, TranslationService, translationPrompt } from './translation.ts'
+import { TranslationConnectionError, TranslationError, TranslationQualityError, TranslationService, translationPrompt } from './translation.ts'
 import { waitForTranslation } from './translationGate.ts'
 
 export function parseReadmeTranslation(value: unknown): ReadmeTranslationRequest | null {
@@ -66,7 +66,7 @@ export async function translateReadme(
         return output
       } catch (error) {
         if (signal.aborted) throw signal.reason
-        if (error instanceof TranslationQualityError) throw error
+        if (error instanceof TranslationQualityError || error instanceof TranslationConnectionError) throw error
         consecutiveFailures++
         if (attempt >= 2 || consecutiveFailures >= 3) throw error
         const delay = error instanceof TranslationError && error.retryAfter ? error.retryAfter * 1000 : 1500 * 2 ** attempt
@@ -98,6 +98,7 @@ export async function translateReadme(
       for (let index = 0; index < batch.length; index++) await publish(batch[index], translated[index])
     } catch (error) {
       if (signal.aborted) throw signal.reason
+      if (error instanceof TranslationConnectionError) { await emit({ type: 'blocked' }); return }
       if (!(error instanceof TranslationQualityError)) {
         const delay = error instanceof TranslationError && error.retryAfter ? error.retryAfter * 1000 : 15_000
         await emit({ type: 'unavailable', retryAt: Date.now() + delay })
@@ -108,6 +109,7 @@ export async function translateReadme(
         if (failed.has(piece.index)) continue
         try { await publish(piece, (await translate([piece]))[0]) } catch (failure) {
           if (signal.aborted) throw signal.reason
+          if (failure instanceof TranslationConnectionError) { await emit({ type: 'blocked' }); return }
           if (!(failure instanceof TranslationQualityError)) {
             await emit({ type: 'unavailable', retryAt: Date.now() + (failure instanceof TranslationError && failure.retryAfter ? failure.retryAfter * 1000 : 15_000) })
             return

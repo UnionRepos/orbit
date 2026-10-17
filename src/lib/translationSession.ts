@@ -7,7 +7,7 @@ export interface TranslationProgress {
   pending: number
   failed: number
   retryAt: number
-  status: 'idle' | 'running' | 'waiting' | 'unavailable' | 'complete'
+  status: 'idle' | 'running' | 'waiting' | 'unavailable' | 'blocked' | 'complete'
 }
 
 type PassageState = 'waiting' | 'running' | 'done' | 'failed'
@@ -47,7 +47,7 @@ export class TranslationSession {
     this.publish()
   }
   resume() {
-    if (this.disposed) return
+    if (this.disposed || this.status === 'blocked') return
     this.paused = false
     if (this.status === 'unavailable' && Date.now() < this.retryAt) { this.publish(); return }
     if (this.status === 'unavailable') { this.status = 'idle'; this.reconnects = 0 }
@@ -55,7 +55,7 @@ export class TranslationSession {
   }
 
   retry(index?: number) {
-    if (this.disposed || Date.now() < this.retryAt) return
+    if (this.disposed || this.status === 'blocked' || Date.now() < this.retryAt) return
     this.states = this.states.map((state, current) => state === 'failed' && (index === undefined || current === index) ? 'waiting' : state)
     this.reconnects = 0
     this.status = 'idle'
@@ -65,7 +65,7 @@ export class TranslationSession {
   }
 
   reconnect() {
-    if (this.disposed) return
+    if (this.disposed || this.status === 'blocked') return
     this.controller?.abort()
     this.retryAt = 0
     this.reconnects = 0
@@ -88,7 +88,7 @@ export class TranslationSession {
   }
 
   private pump() {
-    if (this.disposed || this.paused || this.controller || this.status === 'unavailable') return
+    if (this.disposed || this.paused || this.controller || (this.status === 'unavailable' || this.status === 'blocked')) return
     if (Date.now() < this.retryAt) {
       if (!this.timer) this.timer = setTimeout(() => { this.timer = undefined; this.pump() }, this.retryAt - Date.now())
       return
@@ -120,6 +120,8 @@ export class TranslationSession {
       this.options.onError?.(event.index)
     } else if (event.type === 'waiting') {
       this.status = 'waiting'; this.retryAt = event.retryAt
+    } else if (event.type === 'blocked') {
+      this.status = 'blocked'; this.retryAt = 0
     } else if (event.type === 'unavailable') {
       this.status = 'unavailable'; this.retryAt = event.retryAt
     }
@@ -129,11 +131,13 @@ export class TranslationSession {
   private async run(passages: ReadmePassage[], controller: AbortController) {
     try {
       await this.options.request(passages, controller.signal, (event) => this.receive(event, controller))
-      if (!this.disposed && !controller.signal.aborted && this.status !== 'unavailable') this.status = this.states.some((state) => state === 'waiting') ? 'idle' : 'complete'
+      if (!this.disposed && !controller.signal.aborted && this.status !== 'unavailable' && this.status !== 'blocked') this.status = this.states.some((state) => state === 'waiting') ? 'idle' : 'complete'
     } catch (error) {
       if (this.disposed || controller.signal.aborted) return
       // Network reconnects are bounded, and only unfinished passages are resent.
-      if (++this.reconnects <= 2) {
+      if (error instanceof TranslationRequestError && error.blocked) {
+        this.status = 'blocked'; this.retryAt = 0
+      } else if (++this.reconnects <= 2) {
         this.status = 'waiting'
         this.retryAt = Date.now() + (error instanceof TranslationRequestError && error.retryAfter > 0 ? error.retryAfter * 1000 : (this.options.reconnectDelay ?? 1500) * this.reconnects)
       } else {

@@ -131,3 +131,19 @@ test('leaving a README suppresses late results and cancels its server stream', a
   assert.equal(signal.aborted, true)
   assert.deepEqual(state.results, [])
 })
+
+test('provider access rejection cannot restart through timers, online events, pause or retry', async () => {
+  const state = setup()
+  let calls = 0
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b'], reconnectDelay: 1, request: async (_passages, _signal, emit) => {
+    calls++; emit({ type: 'result', index: 0, text: 'A' }); emit({ type: 'blocked' })
+  } })
+  reader.resume(); await tick()
+  reader.reconnect(); reader.retry(); reader.pause(); reader.resume(); await tick()
+  assert.equal(calls, 1)
+  assert.equal(state.progress.status, 'blocked')
+  assert.equal(state.progress.completed, 1)
+  assert.equal(state.progress.pending, 0)
+  assert.equal(state.progress.retryAt, 0)
+  reader.dispose()
+})

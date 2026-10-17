@@ -70,3 +70,6 @@ jobs:
           done
           echo "Health check never passed." >&2
           exit 1
+
+      - name: Smoke test translation provider
+        run: node scripts/smoke-translation.ts

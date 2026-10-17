@@ -37,6 +37,7 @@ export type ReadmeTranslationEvent =
   | { type: 'failed'; index: number }
   | { type: 'waiting'; retryAt: number }
   | { type: 'unavailable'; retryAt: number }
+  | { type: 'blocked' }
   | { type: 'done' }
   | { type: 'ping' }
 

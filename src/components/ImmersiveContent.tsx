@@ -64,7 +64,7 @@ export function ImmersiveContent({ html, className = '', onClick }: {
         passage.translated.hidden = false
       }),
       onProgress: (progress) => {
-        if (progress.status === 'unavailable') root.querySelectorAll<HTMLElement>('.translation-feedback.is-loading').forEach((node) => { node.hidden = true })
+        if (progress.status === 'unavailable' || progress.status === 'blocked') root.querySelectorAll<HTMLElement>('.translation-feedback.is-loading').forEach((node) => { node.hidden = true })
         report(progress)
       },
     })

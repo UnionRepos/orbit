@@ -2,6 +2,7 @@ import { app } from '../server/app.ts'
 import { setBackgroundScheduler } from '../server/background.ts'
 import { configureEnvironment } from '../server/config.ts'
 import { ensureSeedProvider, type SeedPayload } from '../server/seed-core.ts'
+import { forwardTranslation, type TranslationRelayEnvironment } from '../server/translationRelay.ts'
 
 /**
  * Cloudflare Workers entry point. `/api/*` is routed here by
@@ -12,7 +13,7 @@ import { ensureSeedProvider, type SeedPayload } from '../server/seed-core.ts'
  * bundled into the Worker script: it is only downloaded when GitHub actually
  * fails, which keeps the script (and therefore isolate startup) small.
  */
-export interface Env {
+export interface Env extends TranslationRelayEnvironment {
   ASSETS: { fetch: (request: Request) => Promise<Response> }
   GITHUB_TOKEN?: string
   GH_TOKEN?: string
@@ -38,6 +39,10 @@ export default {
     if (ctx) setBackgroundScheduler((task) => ctx.waitUntil(task))
 
     const url = new URL(request.url)
+    if (url.pathname.startsWith('/api/translate')) {
+      const response = await forwardTranslation(request, env)
+      if (response) return response
+    }
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       return app.fetch(request, env)
     }

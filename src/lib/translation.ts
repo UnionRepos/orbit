@@ -4,10 +4,12 @@ import { splitTranslationText } from '../../shared/translationChunks.ts'
 export class TranslationRequestError extends Error {
   status: number
   retryAfter: number
-  constructor(status: number, retryAfter = 0) {
+  blocked: boolean
+  constructor(status: number, retryAfter = 0, blocked = false) {
     super('Translation request failed')
     this.status = status
     this.retryAfter = retryAfter
+    this.blocked = blocked
   }
 }
 
@@ -23,7 +25,7 @@ export function cachedTranslation(text: string, target: TranslationLanguage): st
 export function decodeTranslationEvent(data: string): ReadmeTranslationEvent {
   const event = JSON.parse(data) as ReadmeTranslationEvent
   if (!event || typeof event !== 'object') throw new TranslationRequestError(502)
-  if (event.type === 'done' || event.type === 'ping') return event
+  if (event.type === 'done' || event.type === 'ping' || event.type === 'blocked') return event
   if ((event.type === 'waiting' || event.type === 'unavailable') && Number.isFinite(event.retryAt) && event.retryAt >= 0) return event
   if ((event.type === 'start' || event.type === 'failed') && Number.isInteger(event.index)) return event
   if (event.type === 'result' && Number.isInteger(event.index) && typeof event.text === 'string' && event.text.trim()) return event
@@ -57,9 +59,9 @@ export async function requestReadmeTranslation(
   } finally { clearTimeout(firstByteTimeout) }
   if (!response.ok) {
     const timeout = setTimeout(() => controller.abort(), 5000)
-    let body: { retryAfter?: number }
-    try { body = await response.json().catch(() => ({})) as { retryAfter?: number } } finally { clearTimeout(timeout) }
-    throw new TranslationRequestError(response.status, body.retryAfter ?? (Number(response.headers.get('retry-after')) || 0))
+    let body: { retryAfter?: number; code?: string }
+    try { body = await response.json().catch(() => ({})) as { retryAfter?: number; code?: string } } finally { clearTimeout(timeout) }
+    throw new TranslationRequestError(response.status, body.retryAfter ?? (Number(response.headers.get('retry-after')) || 0), body.code === 'translation-connection')
   }
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new TranslationRequestError(502)
   const reader = response.body.getReader()
@@ -96,7 +98,7 @@ export async function requestReadmeTranslation(
           terminal = true
         }
         if (event.type === 'failed') delivered.add(event.index)
-        if (event.type === 'unavailable') terminal = true
+        if (event.type === 'unavailable' || event.type === 'blocked') terminal = true
         if (event.type !== 'ping') emit(event)
       }
       if (chunk.done) break

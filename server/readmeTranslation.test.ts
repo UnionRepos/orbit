@@ -130,3 +130,13 @@ test('README endpoint streams a document through one HTTP response and rejects c
   assert.equal((text.match(/"type":"result"/g) ?? []).length, 30)
   assert.ok(text.includes('"type":"done"'))
 })
+
+test('Bilibili HTTP 412 access rejection stops immediately instead of retrying as server busy', async () => {
+  let calls = 0
+  const events: ReadmeTranslationEvent[] = []
+  const service = new TranslationService(async () => { calls++; return new Response('<html>Bilibili access check</html>', { status: 412 }) }, new TranslationGate(0))
+  await translateReadme({ target: 'zh', passages: [{ index: 0, text: 'DeepSeek Harness' }, { index: 1, text: 'Developer preview' }] }, service, new AbortController().signal, async (event) => { events.push(event) }, async () => { assert.fail('access denial must not sleep/retry') })
+  assert.equal(calls, 1)
+  assert.equal(events.at(-1)?.type, 'blocked')
+  assert.equal(events.some((event) => ['waiting', 'unavailable', 'failed', 'done'].includes(event.type)), false)
+})

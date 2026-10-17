@@ -35,6 +35,7 @@ export const en = {
   'translation.progressAria': "README translation progress",
   'translation.empty': 'No prose to translate in this README',
   'translation.reconnect': "Resume unfinished",
+  'translation.connectionUnavailable': 'Translation is unavailable on this site right now',
   'translation.serviceUnavailable': "Translation service unavailable · completed text is kept",
   'translation.recovering': "Service busy · continuing in {seconds}s",
   // ---------------------------------------------------------------- app shell

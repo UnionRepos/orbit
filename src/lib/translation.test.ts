@@ -87,3 +87,15 @@ test('a done event cannot hide missing results or an unexpected passage index', 
     }
   } finally { globalThis.fetch = original }
 })
+
+test('connection rejection is terminal over SSE and JSON without repeated browser retries', async () => {
+  const original = globalThis.fetch
+  try {
+    globalThis.fetch = async () => sse([{ type: 'blocked' }])
+    const events: ReadmeTranslationEvent[] = []
+    await requestReadmeTranslation([{ index: 0, text: 'blocked-stream' }], 'zh', new AbortController().signal, (event) => events.push(event))
+    assert.deepEqual(events, [{ type: 'blocked' }])
+    globalThis.fetch = async () => Response.json({ code: 'translation-connection' }, { status: 503 })
+    await assert.rejects(requestReadmeTranslation([{ index: 0, text: 'blocked-json' }], 'zh', new AbortController().signal, () => {}), (error: unknown) => error instanceof TranslationRequestError && error.blocked)
+  } finally { globalThis.fetch = original }
+})

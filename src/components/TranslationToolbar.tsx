@@ -54,17 +54,17 @@ export function TranslationToolbar() {
         {views.map((view) => <button key={view.value} type="button" aria-pressed={mode === view.value} onClick={() => setMode(view.value)}>{view.label}</button>)}
       </div>
       <div className="translation-session-actions">
-        {(failed > 0 || status === 'unavailable') && <button className="translation-retry" disabled={wait > 0} onClick={retry}>
+        {status !== 'blocked' && (failed > 0 || status === 'unavailable') && <button className="translation-retry" disabled={wait > 0} onClick={retry}>
           <RotateCcw size={12} aria-hidden="true" />{wait > 0 ? t('translation.wait', { seconds: wait }) : status === 'unavailable' ? t('translation.reconnect') : t('translation.retryFailed')}
         </button>}
-        {total - completed - failed > 0 && mode !== 'original' && status !== 'unavailable' && <button className="translation-pause" onClick={() => setPaused(!paused)}>
+        {total - completed - failed > 0 && mode !== 'original' && status !== 'unavailable' && status !== 'blocked' && <button className="translation-pause" onClick={() => setPaused(!paused)}>
           {paused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />}{paused ? t('translation.resume') : t('translation.pause')}
         </button>}
       </div>
     </div>
     <div className="translation-progress-copy" role="status" aria-live="polite" aria-atomic="true">
       <span>{complete ? <Check size={12} aria-hidden="true" /> : pending > 0 && !paused && mode !== 'original' ? <LoaderCircle size={12} className="spinning" aria-hidden="true" /> : null}
-        {complete ? total === 0 ? t('translation.empty') : t('translation.complete') : mode === 'original' ? t('translation.originalPaused') : paused ? t('translation.paused') : status === 'unavailable' ? t('translation.serviceUnavailable') : wait > 0 ? t('translation.recovering', { seconds: wait }) : t('translation.progress', { done: completed, total })}
+        {complete ? total === 0 ? t('translation.empty') : t('translation.complete') : mode === 'original' ? t('translation.originalPaused') : status === 'blocked' ? t('translation.connectionUnavailable') : paused ? t('translation.paused') : status === 'unavailable' ? t('translation.serviceUnavailable') : wait > 0 ? t('translation.recovering', { seconds: wait }) : t('translation.progress', { done: completed, total })}
         {failed > 0 && <span className="translation-failure-count">{t('translation.failedCount', { count: failed })}</span>}
       </span>
       <span className="translation-percent">{percent}%</span>

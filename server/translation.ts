@@ -57,6 +57,11 @@ export class TranslationQualityError extends TranslationError {
   constructor(reason: string) { super(502, `The translation was incomplete or repetitive (${reason}). Try again.`) }
 }
 
+/** Access/configuration failures cannot be repaired by retrying smaller batches. */
+export class TranslationConnectionError extends TranslationError {
+  constructor() { super(503, 'The translation connection is unavailable for this site.') }
+}
+
 /** Never pass provider output through as HTML, and reject missing/reordered passages. */
 export function parseTranslationOutput(content: unknown, texts: string[]): string[] {
   if (typeof content !== 'string') throw new TranslationQualityError('invalid-response')
@@ -229,10 +234,20 @@ export class TranslationService {
         const seconds = Number(header)
         const retry = Number.isFinite(seconds) && seconds > 0 ? seconds : Math.max(0, (Date.parse(header ?? '') - Date.now()) / 1000)
         const delay = Number.isFinite(retry) && retry > 0 ? Math.min(Math.ceil(retry), 120) : 10
+        await response.body?.cancel()
         this.gate.defer(delay * 1000)
         throw new TranslationError(429, 'The translation service is rate limited.', delay)
       }
-      if (!response.ok) throw new TranslationError(502, 'The translation service is temporarily unavailable.')
+      if ([400, 401, 403, 404, 405, 412, 413, 422].includes(response.status)) {
+        console.warn('[translation] Provider rejected the server connection', { status: response.status })
+        await response.body?.cancel()
+        throw new TranslationConnectionError()
+      }
+      if (!response.ok) {
+        console.warn('[translation] Provider request failed', { status: response.status })
+        await response.body?.cancel()
+        throw new TranslationError(502, 'The translation service is temporarily unavailable.')
+      }
       const payload = await response.json() as {
         choices?: { message?: { content?: unknown }; finish_reason?: string }[]
         usage?: TranslationUsage
@@ -307,7 +322,7 @@ export function createTranslationRoutes(service = new TranslationService()) {
     } catch (error) {
       const failure = error instanceof TranslationError ? error : new TranslationError(502, 'Translation is unavailable.')
       if (failure.retryAfter) c.header('Retry-After', String(failure.retryAfter))
-      return c.json({ error: failure.message, retryAfter: failure.retryAfter }, failure.status)
+      return c.json({ error: failure.message, retryAfter: failure.retryAfter, ...(failure instanceof TranslationConnectionError ? { code: 'translation-connection' } : {}) }, failure.status)
     }
   })
   return routes

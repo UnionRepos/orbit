@@ -2,6 +2,7 @@ import { ArrowUpRight, Bookmark, Clock3, Command } from 'lucide-react'
 import type { FeedQuery } from '../../shared/types.ts'
 import { TOPIC_FILTERS } from '../../shared/languages.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n } from '../i18n/index.ts'
 import { relativeTime } from '../lib/format.ts'
 import { navigate, repoPath } from '../lib/router.ts'
 import { cacheRepo } from '../lib/repoCache.ts'
@@ -13,19 +14,20 @@ interface FeedAsideProps {
 
 export function FeedAside({ params, onChange }: FeedAsideProps) {
   const { saved, recent, openPalette } = useOrbit()
+  const { t, tp } = useI18n()
 
   return (
-    <aside className="feed-aside" aria-label="More ways to explore">
+    <aside className="feed-aside" aria-label={t('aside.aria')}>
       <section className="directory-note">
         <span className="directory-note-mark" aria-hidden="true">↗</span>
-        <h2>Made in the open.<br />Worth a closer look.</h2>
-        <p>Find your next dependency, weekend project, or place to contribute.</p>
-        <a href="#/about">A little about Orbit <ArrowUpRight size={14} /></a>
+        <h2>{t('aside.headline1')}<br />{t('aside.headline2')}</h2>
+        <p>{t('aside.body')}</p>
+        <a href="#/about">{t('aside.about')} <ArrowUpRight size={14} /></a>
       </section>
 
       <section className="rail-card">
         <div className="rail-head">
-          <h2 className="section-label">Browse by topic</h2>
+          <h2 className="section-label">{t('aside.topics')}</h2>
           <span className="aside-count">{TOPIC_FILTERS.length}</span>
         </div>
         <div className="rail-topics">
@@ -36,7 +38,7 @@ export function FeedAside({ params, onChange }: FeedAsideProps) {
               aria-pressed={params.topic === topic.id}
               onClick={() => onChange({ topic: params.topic === topic.id ? null : topic.id })}
             >
-              {topic.label}<ArrowUpRight size={13} />
+              {t(`topic.${topic.id}.label`)}<ArrowUpRight size={13} />
             </button>
           ))}
         </div>
@@ -44,15 +46,15 @@ export function FeedAside({ params, onChange }: FeedAsideProps) {
 
       <section className="rail-card reading-card">
         <Bookmark size={20} strokeWidth={1.5} />
-        <h2>A list for later.</h2>
-        <p>{saved.length ? `${saved.length} saved project${saved.length === 1 ? '' : 's'}, ready when you are.` : 'Keep the projects that catch your eye. Your reading list stays on this device.'}</p>
-        <a href="#/saved">Open reading list <ArrowUpRight size={14} /></a>
+        <h2>{t('aside.listTitle')}</h2>
+        <p>{saved.length ? tp('aside.listSaved', saved.length) : t('aside.listEmpty')}</p>
+        <a href="#/saved">{t('aside.openList')} <ArrowUpRight size={14} /></a>
       </section>
 
       {recent.length > 0 && (
         <section className="rail-card">
           <div className="rail-head">
-            <h2 className="section-label">Recently viewed</h2>
+            <h2 className="section-label">{t('aside.recent')}</h2>
             <Clock3 size={14} className="rail-head-icon" />
           </div>
           <div className="recent-list">
@@ -71,9 +73,9 @@ export function FeedAside({ params, onChange }: FeedAsideProps) {
       )}
 
       <button className="aside-command" onClick={openPalette}>
-        <Command size={14} /> Go anywhere <kbd>⌘K</kbd>
+        <Command size={14} /> {t('aside.goAnywhere')} <kbd>⌘K</kbd>
       </button>
-      <p className="rail-footer">Independent. Open source. <a href="#/about">About Orbit</a></p>
+      <p className="rail-footer">{t('aside.footer')} <a href="#/about">{t('aside.footerAbout')}</a></p>
     </aside>
   )
 }

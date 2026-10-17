@@ -85,16 +85,16 @@ export const LANGUAGE_FILTERS = [
 ] as const
 
 export const TOPIC_FILTERS = [
-  { id: 'ai', label: 'AI & LLMs', color: '#a78bfa' },
-  { id: 'machine-learning', label: 'Machine learning', color: '#f472b6' },
-  { id: 'developer-tools', label: 'Developer tools', color: '#60a5fa' },
-  { id: 'web', label: 'Web', color: '#34d399' },
-  { id: 'cli', label: 'CLI', color: '#fbbf24' },
-  { id: 'react', label: 'React', color: '#22d3ee' },
-  { id: 'rust', label: 'Rust', color: '#fb923c' },
-  { id: 'kubernetes', label: 'Kubernetes', color: '#818cf8' },
-  { id: 'security', label: 'Security', color: '#f87171' },
-  { id: 'database', label: 'Databases', color: '#2dd4bf' },
-  { id: 'design', label: 'Design', color: '#e879f9' },
-  { id: 'game-development', label: 'Game dev', color: '#facc15' },
+  { id: 'ai', color: '#a78bfa' },
+  { id: 'machine-learning', color: '#f472b6' },
+  { id: 'developer-tools', color: '#60a5fa' },
+  { id: 'web', color: '#34d399' },
+  { id: 'cli', color: '#fbbf24' },
+  { id: 'react', color: '#22d3ee' },
+  { id: 'rust', color: '#fb923c' },
+  { id: 'kubernetes', color: '#818cf8' },
+  { id: 'security', color: '#f87171' },
+  { id: 'database', color: '#2dd4bf' },
+  { id: 'design', color: '#e879f9' },
+  { id: 'game-development', color: '#facc15' },
 ] as const

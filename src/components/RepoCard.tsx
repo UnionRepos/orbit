@@ -9,7 +9,8 @@ import {
 import type { RepoSummary } from '../../shared/types.ts'
 import { languageColor } from '../../shared/languages.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
-import { compactNumber, relativeTime, starVelocity } from '../lib/format.ts'
+import { useI18n } from '../i18n/index.ts'
+import { compactNumber, fullNumber, relativeTime, starVelocity } from '../lib/format.ts'
 import { cacheRepo } from '../lib/repoCache.ts'
 import { feedPath, navigate, repoPath, userPath } from '../lib/router.ts'
 
@@ -21,6 +22,7 @@ interface RepoCardProps {
 
 export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
   const { isSaved, toggleSave, toast } = useOrbit()
+  const { t } = useI18n()
   const saved = isSaved(repo.fullName)
   const color = languageColor(repo.language)
   const ageDays = (Date.now() - Date.parse(repo.createdAt)) / 86_400_000
@@ -28,7 +30,10 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
   function onSave(event: React.MouseEvent) {
     event.stopPropagation()
     const nowSaved = toggleSave(repo)
-    toast(nowSaved ? `Saved ${repo.name} to your reading list` : `Removed ${repo.name}`, nowSaved ? 'success' : 'info')
+    toast(
+      nowSaved ? t('card.savedToast', { name: repo.name }) : t('card.removedToast', { name: repo.name }),
+      nowSaved ? 'success' : 'info',
+    )
   }
 
   function onTopic(event: React.MouseEvent, topic: string) {
@@ -53,7 +58,7 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
 
       <div className="card-main">
         <header className="card-head">
-          <button className="avatar-btn" onClick={onOwner} title={`View ${repo.owner.login}`} aria-label={`View ${repo.owner.login}`}>
+          <button className="avatar-btn" onClick={onOwner} title={t('card.viewUser', { login: repo.owner.login })} aria-label={t('card.viewUser', { login: repo.owner.login })}>
             <img
               src={repo.owner.avatarUrl}
               alt=""
@@ -70,8 +75,8 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
             <h3>
               <a className="repo-name" href={`#${repoPath(repo.owner.login, repo.name)}`} onClick={() => cacheRepo(repo)}>{repo.name}</a>
               <ExternalButton repo={repo} />
-              {repo.archived && <span className="badge badge-muted">Archived</span>}
-              {!repo.archived && ageDays < 30 && <span className="badge badge-new">New</span>}
+              {repo.archived && <span className="badge badge-muted">{t('card.archived')}</span>}
+              {!repo.archived && ageDays < 30 && <span className="badge badge-new">{t('card.new')}</span>}
             </h3>
           </div>
 
@@ -79,15 +84,15 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
             className={`save-btn ${saved ? 'saved' : ''}`}
             onClick={onSave}
             aria-pressed={saved}
-            aria-label={saved ? `Remove ${repo.name} from reading list` : `Save ${repo.name} to reading list`}
-            title={saved ? 'Remove from reading list' : 'Save to reading list'}
+            aria-label={saved ? t('card.unsaveAria', { name: repo.name }) : t('card.saveAria', { name: repo.name })}
+            title={saved ? t('card.unsaveTitle') : t('card.saveTitle')}
           >
             {saved ? <BookmarkCheck size={17} /> : <Bookmark size={17} />}
           </button>
         </header>
 
         <p className="card-description">
-          {repo.description || <span className="muted-italic">No description provided.</span>}
+          {repo.description || <span className="muted-italic">{t('card.noDescription')}</span>}
         </p>
 
         {repo.topics.length > 0 && (
@@ -105,25 +110,25 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
 
         <footer className="card-footer">
           <div className="card-metrics">
-            <span className="metric language" title={repo.language ?? 'Unknown language'}>
+            <span className="metric language" title={repo.language ?? t('common.unknown')}>
               <span className="lang-dot" style={{ background: color }} />
-              {repo.language ?? 'Unknown'}
+              {repo.language ?? t('common.unknown')}
             </span>
-            <span className="metric" title={`${repo.stars.toLocaleString()} stars`}>
+            <span className="metric" title={t('card.starsTitle', { count: fullNumber(repo.stars) })}>
               <Star size={13} />
               {compactNumber(repo.stars)}
             </span>
-            <span className="metric" title={`${repo.forks.toLocaleString()} forks`}>
+            <span className="metric" title={t('card.forksTitle', { count: fullNumber(repo.forks) })}>
               <GitFork size={13} />
               {compactNumber(repo.forks)}
             </span>
-            <span className="metric hide-small" title={`Last push ${relativeTime(repo.pushedAt)}`}>
-              Updated {relativeTime(repo.pushedAt)}
+            <span className="metric hide-small" title={t('card.lastPushTitle', { time: relativeTime(repo.pushedAt) })}>
+              {t('card.updated', { time: relativeTime(repo.pushedAt) })}
             </span>
           </div>
 
           <div className="card-trend">
-            <span className="velocity" title="Average stars gained per day since the project was created">
+            <span className="velocity" title={t('card.velocityTitle')}>
               <TrendingUp size={13} />
               {starVelocity(repo.starsPerDay)}
             </span>
@@ -135,6 +140,7 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
 }
 
 function ExternalButton({ repo }: { repo: RepoSummary }) {
+  const { t } = useI18n()
   return (
     <a
       className="repo-external"
@@ -142,8 +148,8 @@ function ExternalButton({ repo }: { repo: RepoSummary }) {
       target="_blank"
       rel="noreferrer noopener"
       onClick={(event) => event.stopPropagation()}
-      title="Open on GitHub"
-      aria-label={`Open ${repo.fullName} on GitHub`}
+      title={t('card.openGithub')}
+      aria-label={t('card.openGithubAria', { name: repo.fullName })}
     >
       <ArrowUpRight size={14} />
     </a>

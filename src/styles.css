@@ -4,6 +4,8 @@
 
 :root {
   --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans-cjk: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --font-editorial: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
   --accent: #326451;
@@ -96,6 +98,18 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* CJK glyphs come from a dedicated stack so Chinese text keeps its own metrics. */
+html[lang^='zh'] body {
+  font-family: var(--font-sans-cjk);
+  font-feature-settings: normal;
+}
+
+html[lang^='zh'] .section-label,
+html[lang^='zh'] .eyebrow {
+  letter-spacing: 0.05em;
+  text-transform: none;
 }
 
 body::before {
@@ -284,6 +298,18 @@ kbd {
   color: var(--text);
   background: var(--panel);
   border-color: var(--border);
+}
+
+/* Language switcher: icon + target-locale label, sized like a regular icon button. */
+.lang-btn {
+  gap: 5px;
+  width: auto;
+  min-width: 36px;
+  padding: 0 9px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .icon-btn.danger:hover {
@@ -5104,6 +5130,7 @@ body.sheet-open {
   .topbar-actions { gap: 0; }
   .topbar-actions .about-link { display: none; }
   .topbar-actions .icon-btn { width: 32px; height: 32px; }
+  .topbar-actions .lang-btn { width: auto; padding: 0 7px 0 6px; }
   .global-search { order: 4; flex: 1 0 100%; max-width: none; height: 36px; margin: 12px 0 0; }
   .global-search input { font-size: 14px; }
   .page { padding: 25px 20px 60px; }

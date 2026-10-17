@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -15,40 +16,41 @@ import {
   Zap,
 } from 'lucide-react'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n, type MessageKey } from '../i18n/index.ts'
 import { compactNumber, timeUntil } from '../lib/format.ts'
 import { GithubIcon } from './icons.tsx'
 import { navigate } from '../lib/router.ts'
 
-const FEATURES = [
+const FEATURES: { icon: ReactNode; titleKey: MessageKey; bodyKey: MessageKey }[] = [
   {
     icon: <Flame size={18} />,
-    title: 'Six discovery channels',
-    body: 'Browse new, active, and established projects, or find repositories welcoming their first contributors.',
+    titleKey: 'feature.channels.title',
+    bodyKey: 'feature.channels.body',
   },
   {
     icon: <Gauge size={18} />,
-    title: 'Project momentum',
-    body: 'Every project gets a transparent 0–100 momentum score and a stars-per-day velocity, blending reach, freshness and fork activity.',
+    titleKey: 'feature.momentum.title',
+    bodyKey: 'feature.momentum.body',
   },
   {
     icon: <BookOpen size={18} />,
-    title: 'Read documentation here',
-    body: 'Markdown is rendered safely in-app with generated tables of contents, relative image resolution and copy-ready raw source.',
+    titleKey: 'feature.docs.title',
+    bodyKey: 'feature.docs.body',
   },
   {
     icon: <Bookmark size={18} />,
-    title: 'A reading list with notes',
-    body: 'Save projects locally, jot down why they matter, export the list as JSON. No account, no tracking, no syncing surprises.',
+    titleKey: 'feature.list.title',
+    bodyKey: 'feature.list.body',
   },
   {
     icon: <Command size={18} />,
-    title: 'Keyboard-first navigation',
-    body: 'Press ⌘K from anywhere to search GitHub, jump between channels, open saved work or switch themes without reaching for the mouse.',
+    titleKey: 'feature.keyboard.title',
+    bodyKey: 'feature.keyboard.body',
   },
   {
     icon: <ShieldIcon />,
-    title: 'Available offline',
-    body: 'Cached results and a curated collection keep the directory available when GitHub cannot be reached.',
+    titleKey: 'feature.offline.title',
+    bodyKey: 'feature.offline.body',
   },
 ]
 
@@ -58,26 +60,22 @@ function ShieldIcon() {
 
 export function AboutPage() {
   const { health, refreshHealth } = useOrbit()
+  const { t } = useI18n()
   const rate = health?.rate
 
   return (
     <div className="about-page">
       <button className="back-link" onClick={() => navigate('/')}>
-        <ArrowLeft size={15} /> Back to discover
+        <ArrowLeft size={15} /> {t('common.back')}
       </button>
 
       <section className="about-hero">
-        <div className="eyebrow">
-          About Orbit
-        </div>
-        <h1>A place to explore open source.</h1>
-        <p>
-          Orbit is an independent directory of GitHub projects. Browse by language and topic,
-          read the documentation, and save projects you want to come back to.
-        </p>
+        <div className="eyebrow">{t('about.eyebrow')}</div>
+        <h1>{t('about.title')}</h1>
+        <p>{t('about.body')}</p>
         <div className="about-hero-actions">
           <button className="btn btn-primary" onClick={() => navigate('/')}>
-            <Flame size={15} /> Explore the feed
+            <Flame size={15} /> {t('about.explore')}
           </button>
           <a
             className="btn"
@@ -85,7 +83,7 @@ export function AboutPage() {
             target="_blank"
             rel="noreferrer"
           >
-            <GithubIcon size={15} /> GitHub REST API <ArrowUpRight size={12} />
+            <GithubIcon size={15} /> {t('about.api')} <ArrowUpRight size={12} />
           </a>
         </div>
       </section>
@@ -93,36 +91,40 @@ export function AboutPage() {
       <section className="about-status">
         <div className="about-status-head">
           <h2>
-            <Server size={16} /> Live system status
+            <Server size={16} /> {t('about.statusTitle')}
           </h2>
           <button className="link-btn" onClick={refreshHealth}>
-            <RefreshCw size={13} /> Refresh
+            <RefreshCw size={13} /> {t('common.refresh')}
           </button>
         </div>
         <div className="status-grid">
           <div>
-            <span>GitHub token</span>
+            <span>{t('about.token')}</span>
             <strong className={health?.hasToken ? 'ok' : 'warn'}>
-              {health?.hasToken ? 'Configured' : 'Not set'}
+              {health?.hasToken ? t('about.configured') : t('about.notSet')}
             </strong>
-            <small>{health?.hasToken ? '5,000 core requests/hour' : '60 core · 10 search/min'}</small>
+            <small>{health?.hasToken ? t('about.tokenRich') : t('about.tokenAnon')}</small>
           </div>
           <div>
-            <span>API quota</span>
+            <span>{t('about.quota')}</span>
             <strong>
               {rate ? `${rate.remaining}/${rate.limit}` : '—'}
             </strong>
-            <small>{rate ? `resets in ${timeUntil(rate.reset)}` : 'checking…'}</small>
+            <small>{rate ? t('about.resets', { time: timeUntil(rate.reset) }) : t('about.checking')}</small>
           </div>
           <div>
-            <span>Disk cache</span>
-            <strong>{health ? `${compactNumber(health.cache.entries)} entries` : '—'}</strong>
-            <small>{health ? `${(health.cache.bytes / 1024).toFixed(0)} KB warm responses` : '—'}</small>
+            <span>{t('about.cache')}</span>
+            <strong>{health ? t('about.entries', { count: compactNumber(health.cache.entries) }) : '—'}</strong>
+            <small>
+              {health
+                ? t('about.warm', { size: (health.cache.bytes / 1024).toFixed(0) })
+                : '—'}
+            </small>
           </div>
           <div>
-            <span>Version</span>
+            <span>{t('about.version')}</span>
             <strong>Orbit {health?.version ?? '0.1.0'}</strong>
-            <small>React · Vite · Hono</small>
+            <small>{t('about.stack')}</small>
           </div>
         </div>
       </section>
@@ -130,16 +132,16 @@ export function AboutPage() {
       <section className="about-features">
         <div className="about-section-head">
           <div className="eyebrow">
-            <Layers size={12} /> What is inside
+            <Layers size={12} /> {t('about.inside')}
           </div>
-          <h2>Tools for finding your next project</h2>
+          <h2>{t('about.featuresTitle')}</h2>
         </div>
         <div className="feature-grid">
           {FEATURES.map((feature) => (
-            <article className="feature-card" key={feature.title}>
+            <article className="feature-card" key={feature.titleKey}>
               <span className="feature-icon">{feature.icon}</span>
-              <h3>{feature.title}</h3>
-              <p>{feature.body}</p>
+              <h3>{t(feature.titleKey)}</h3>
+              <p>{t(feature.bodyKey)}</p>
             </article>
           ))}
         </div>
@@ -148,38 +150,34 @@ export function AboutPage() {
       <section className="about-flow">
         <div className="about-section-head">
           <div className="eyebrow">
-            <Database size={12} /> Under the hood
+            <Database size={12} /> {t('about.under')}
           </div>
-          <h2>One cache-friendly API hop</h2>
-          <p>
-            The browser never talks to GitHub directly. A small Hono service normalises responses,
-            deduplicates in-flight requests, stores ETags and falls back to stale data when the
-            quota runs dry.
-          </p>
+          <h2>{t('about.flowTitle')}</h2>
+          <p>{t('about.flowBody')}</p>
         </div>
         <div className="flow-steps">
           <div className="flow-step">
             <span>01</span>
-            <strong>React UI</strong>
-            <p>Feed, filters and deep links live in the URL so every view is shareable.</p>
+            <strong>{t('flow.ui.title')}</strong>
+            <p>{t('flow.ui.body')}</p>
           </div>
           <div className="flow-arrow">→</div>
           <div className="flow-step">
             <span>02</span>
-            <strong>Hono proxy</strong>
-            <p>Validates input, maps GitHub payloads and serves the production build.</p>
+            <strong>{t('flow.proxy.title')}</strong>
+            <p>{t('flow.proxy.body')}</p>
           </div>
           <div className="flow-arrow">→</div>
           <div className="flow-step">
             <span>03</span>
-            <strong>GitHub REST</strong>
-            <p>Conditional requests return 304s that do not count against your quota.</p>
+            <strong>{t('flow.rest.title')}</strong>
+            <p>{t('flow.rest.body')}</p>
           </div>
           <div className="flow-arrow">→</div>
           <div className="flow-step">
             <span>04</span>
-            <strong>Warm cache</strong>
-            <p>Memory + disk survive restarts; a curated snapshot covers outages.</p>
+            <strong>{t('flow.cache.title')}</strong>
+            <p>{t('flow.cache.body')}</p>
           </div>
         </div>
       </section>
@@ -187,27 +185,23 @@ export function AboutPage() {
       <section className="about-setup">
         <div className="about-setup-copy">
           <div className="eyebrow">
-            <Zap size={12} /> Go further
+            <Zap size={12} /> {t('about.further')}
           </div>
-          <h2>Bring your own token</h2>
-          <p>
-            Anonymous GitHub access is fine for browsing, but a token lifts the ceiling to 5,000
-            core requests and 30 searches per minute. Orbit only needs read access to public data —
-            no scopes required.
-          </p>
+          <h2>{t('about.tokenTitle')}</h2>
+          <p>{t('about.tokenBody')}</p>
           <ol className="setup-steps">
-            <li>Create a personal access token (classic or fine-grained).</li>
-            <li>Drop it into a <code>.env</code> file in the project root.</li>
-            <li>Restart the dev server — Orbit picks it up automatically.</li>
+            <li>{t('about.step1')}</li>
+            <li>{t('about.step2')}</li>
+            <li>{t('about.step3')}</li>
           </ol>
         </div>
         <pre className="setup-code">
-          <span className="code-comment"># .env</span>
+          <span className="code-comment">{t('about.codeEnv')}</span>
           {'\n'}
           <span className="code-key">GITHUB_TOKEN</span>=
           <span className="code-value">ghp_your_token_here</span>
           {'\n\n'}
-          <span className="code-comment"># then</span>
+          <span className="code-comment">{t('about.codeThen')}</span>
           {'\n'}
           npm run dev
         </pre>
@@ -216,29 +210,29 @@ export function AboutPage() {
       <section className="about-shortcuts">
         <div className="about-section-head">
           <div className="eyebrow">
-            <Keyboard size={12} /> Keyboard navigation
+            <Keyboard size={12} /> {t('about.shortcutsEyebrow')}
           </div>
-          <h2>Shortcuts</h2>
+          <h2>{t('about.shortcuts')}</h2>
         </div>
         <div className="shortcut-table">
           <div>
-            <span>Open the command menu</span>
+            <span>{t('about.shortcutPalette')}</span>
             <span><kbd>⌘</kbd><kbd>K</kbd></span>
           </div>
           <div>
-            <span>Focus the search field</span>
+            <span>{t('about.shortcutSearch')}</span>
             <span><kbd>/</kbd></span>
           </div>
           <div>
-            <span>Move through results</span>
+            <span>{t('about.shortcutMove')}</span>
             <span><kbd>↑</kbd><kbd>↓</kbd></span>
           </div>
           <div>
-            <span>Open the highlighted result</span>
+            <span>{t('about.shortcutOpen')}</span>
             <span><kbd>↵</kbd></span>
           </div>
           <div>
-            <span>Close any overlay</span>
+            <span>{t('about.shortcutClose')}</span>
             <span><kbd>esc</kbd></span>
           </div>
         </div>
@@ -249,10 +243,7 @@ export function AboutPage() {
           <span className="brand-orbit" />
           <span className="brand-core" />
         </span>
-        <p>
-          Orbit is an independent interface over the public GitHub API. Not affiliated with GitHub,
-          Inc. Data belongs to the projects and people who make it.
-        </p>
+        <p>{t('about.footer')}</p>
       </footer>
     </div>
   )

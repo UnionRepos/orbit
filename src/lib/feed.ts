@@ -1,5 +1,6 @@
 import type { ChannelId, FeedQuery } from '../../shared/types.ts'
 import { CHANNELS } from '../../shared/channels.ts'
+import type { MessageKey } from '../i18n/core.ts'
 import type { Route } from './router.ts'
 
 const CHANNEL_IDS = new Set(CHANNELS.map((channel) => channel.id))
@@ -37,25 +38,25 @@ export function patchFeedQuery(
   return next
 }
 
-export const MIN_STAR_OPTIONS = [
-  { value: 0, label: 'Any' },
-  { value: 100, label: '100+' },
-  { value: 1000, label: '1k+' },
-  { value: 10000, label: '10k+' },
-  { value: 50000, label: '50k+' },
+export const MIN_STAR_OPTIONS: { value: number; labelKey: MessageKey }[] = [
+  { value: 0, labelKey: 'minStars.0' },
+  { value: 100, labelKey: 'minStars.100' },
+  { value: 1000, labelKey: 'minStars.1000' },
+  { value: 10000, labelKey: 'minStars.10000' },
+  { value: 50000, labelKey: 'minStars.50000' },
 ]
 
-export const AGE_OPTIONS = [
-  { value: 0, label: 'Any time' },
-  { value: 7, label: 'Past week' },
-  { value: 30, label: 'Past month' },
-  { value: 90, label: 'Past 3 months' },
-  { value: 365, label: 'Past year' },
+export const AGE_OPTIONS: { value: number; labelKey: MessageKey }[] = [
+  { value: 0, labelKey: 'age.0' },
+  { value: 7, labelKey: 'age.7' },
+  { value: 30, labelKey: 'age.30' },
+  { value: 90, labelKey: 'age.90' },
+  { value: 365, labelKey: 'age.365' },
 ]
 
-export const SORT_OPTIONS: { value: FeedQuery['sort']; label: string }[] = [
-  { value: 'best', label: 'Best match' },
-  { value: 'stars', label: 'Most stars' },
-  { value: 'updated', label: 'Recently active' },
-  { value: 'forks', label: 'Most forked' },
+export const SORT_OPTIONS: { value: FeedQuery['sort']; labelKey: MessageKey }[] = [
+  { value: 'best', labelKey: 'sort.best' },
+  { value: 'stars', labelKey: 'sort.stars' },
+  { value: 'updated', labelKey: 'sort.updated' },
+  { value: 'forks', labelKey: 'sort.forks' },
 ]

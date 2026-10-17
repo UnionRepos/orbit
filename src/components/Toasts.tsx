@@ -1,8 +1,10 @@
 import { CheckCircle2, Info, XCircle, X } from 'lucide-react'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n } from '../i18n/index.ts'
 
 export function Toasts() {
   const { toasts, dismissToast } = useOrbit()
+  const { t } = useI18n()
 
   return (
     <div className="toast-stack" role="status" aria-live="polite">
@@ -18,7 +20,7 @@ export function Toasts() {
             )}
           </span>
           <span className="toast-message">{toast.message}</span>
-          <button onClick={() => dismissToast(toast.id)} aria-label="Dismiss notification">
+          <button onClick={() => dismissToast(toast.id)} aria-label={t('common.dismiss')}>
             <X size={14} />
           </button>
         </div>

@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Command,
   Info,
+  Languages,
   Moon,
   Search,
   Sun,
   X,
 } from 'lucide-react'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { localeMeta, useI18n } from '../i18n/index.ts'
 import { feedPath, navigate, type Route } from '../lib/router.ts'
 
 export function TopBar({ route }: { route: Route }) {
   const { saved, openPalette, theme, toggleTheme } = useOrbit()
+  const { t, toggleLocale, nextLocale } = useI18n()
   const [value, setValue] = useState(route.name === 'feed' ? route.query.get('q') ?? '' : '')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -50,21 +53,23 @@ export function TopBar({ route }: { route: Route }) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <button className="brand" onClick={() => navigate('/')} aria-label="Orbit home">
+        <button className="brand" onClick={() => navigate('/')} aria-label={t('topbar.home')}>
           <span className="brand-mark" aria-hidden="true">
             <span className="brand-orbit" />
             <span className="brand-core" />
           </span>
           <span className="brand-text">
             <span className="brand-name">Orbit</span>
-            <span className="brand-tag">An open-source directory</span>
+            <span className="brand-tag">{t('topbar.tagline')}</span>
           </span>
         </button>
 
-        <nav className="primary-nav" aria-label="Primary">
-          <a href="#/" aria-current={route.name === 'feed' ? 'page' : undefined}>Discover</a>
+        <nav className="primary-nav" aria-label={t('topbar.nav')}>
+          <a href="#/" aria-current={route.name === 'feed' ? 'page' : undefined}>
+            {t('topbar.discover')}
+          </a>
           <a href="#/saved" aria-current={route.name === 'saved' ? 'page' : undefined}>
-            Reading list <span className="nav-count">{saved.length}</span>
+            {t('topbar.readingList')} <span className="nav-count">{saved.length}</span>
           </a>
         </nav>
 
@@ -74,8 +79,8 @@ export function TopBar({ route }: { route: Route }) {
             ref={inputRef}
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Search repositories…"
-            aria-label="Search GitHub projects"
+            placeholder={t('topbar.searchPlaceholder')}
+            aria-label={t('topbar.searchAria')}
             spellCheck={false}
           />
           {value ? (
@@ -92,7 +97,7 @@ export function TopBar({ route }: { route: Route }) {
                 }
                 inputRef.current?.focus()
               }}
-              aria-label="Clear search"
+              aria-label={t('topbar.clearSearch')}
             >
               <X size={14} />
             </button>
@@ -105,10 +110,20 @@ export function TopBar({ route }: { route: Route }) {
 
         <div className="topbar-actions">
           <button
+            className="icon-btn lang-btn"
+            onClick={toggleLocale}
+            title={t('topbar.languageAria')}
+            aria-label={t('topbar.languageAria')}
+          >
+            <Languages size={15} aria-hidden="true" />
+            <span>{localeMeta(nextLocale).short}</span>
+          </button>
+
+          <button
             className="palette-trigger"
             onClick={openPalette}
-            title="Open command menu (⌘K / Ctrl+K)"
-            aria-label="Open command menu"
+            title={t('topbar.commandTitle')}
+            aria-label={t('topbar.commandAria')}
           >
             <Command size={15} />
             <kbd>⌘K</kbd>
@@ -117,8 +132,8 @@ export function TopBar({ route }: { route: Route }) {
           <button
             className="icon-btn"
             onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? t('topbar.themeToLight') : t('topbar.themeToDark')}
+            aria-label={theme === 'dark' ? t('topbar.themeToLight') : t('topbar.themeToDark')}
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -126,8 +141,8 @@ export function TopBar({ route }: { route: Route }) {
           <button
             className="icon-btn about-link"
             onClick={() => navigate('/about')}
-            title="About Orbit"
-            aria-label="About Orbit"
+            title={t('topbar.about')}
+            aria-label={t('topbar.about')}
           >
             <Info size={18} />
           </button>

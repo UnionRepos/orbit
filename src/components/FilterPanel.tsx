@@ -17,6 +17,7 @@ import type { ChannelId, FeedQuery } from '../../shared/types.ts'
 import { CHANNELS } from '../../shared/channels.ts'
 import { LANGUAGE_FILTERS, TOPIC_FILTERS, languageColor } from '../../shared/languages.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n } from '../i18n/index.ts'
 import { AGE_OPTIONS, MIN_STAR_OPTIONS } from '../lib/feed.ts'
 import { timeUntil } from '../lib/format.ts'
 import { navigate } from '../lib/router.ts'
@@ -57,6 +58,7 @@ export function FilterPanel({
   variant = 'rail',
 }: FilterPanelProps) {
   const { saved, health, refreshHealth, openPalette } = useOrbit()
+  const { t } = useI18n()
   const [showAllLanguages, setShowAllLanguages] = useState(false)
   const languages = showAllLanguages ? LANGUAGES : LANGUAGES.slice(0, 6)
   const rate = health?.rate
@@ -67,16 +69,16 @@ export function FilterPanel({
     <div className={`filter-panel ${variant === 'sheet' ? 'sheet-panel' : ''}`}>
       {variant === 'sheet' && (
         <div className="sheet-head">
-          <h2>Refine the feed</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Close filters">
+          <h2>{t('filter.refine')}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label={t('filter.close')}>
             <X size={18} />
           </button>
         </div>
       )}
 
       <section className="filter-section">
-        <div className="section-label">Discover</div>
-        <nav className="channel-nav" aria-label="Discovery channels">
+        <div className="section-label">{t('filter.discover')}</div>
+        <nav className="channel-nav" aria-label={t('filter.channelsAria')}>
           {CHANNELS.map((channel) => {
             const active = params.channel === channel.id && !params.q
             return (
@@ -93,7 +95,7 @@ export function FilterPanel({
                 <span className="channel-icon">
                   <ChannelIcon icon={channel.icon} />
                 </span>
-                <span className="channel-label">{channel.label}</span>
+                <span className="channel-label">{t(`channel.${channel.id}.label`)}</span>
                 {active && <span className="channel-pip" />}
               </button>
             )
@@ -102,7 +104,7 @@ export function FilterPanel({
       </section>
 
       <section className="filter-section">
-        <div className="section-label">Library</div>
+        <div className="section-label">{t('filter.library')}</div>
         <div className="library-nav">
           <button
             className={`library-btn ${saved.length ? 'has-items' : ''}`}
@@ -112,12 +114,12 @@ export function FilterPanel({
             }}
           >
             <Bookmark size={15} />
-            Reading list
+            {t('filter.readingList')}
             <span className="library-count">{saved.length}</span>
           </button>
           <button className="library-btn" onClick={openPalette}>
             <Command size={15} />
-            Command menu
+            {t('filter.commandMenu')}
             <kbd>⌘K</kbd>
           </button>
           <button
@@ -128,13 +130,13 @@ export function FilterPanel({
             }}
           >
             <Info size={15} />
-            How Orbit works
+            {t('filter.how')}
           </button>
         </div>
       </section>
 
       <section className="filter-section">
-        <div className="section-label">Language</div>
+        <div className="section-label">{t('filter.language')}</div>
         <div className="language-list">
           <button
             className={`language-btn ${!params.language ? 'active' : ''}`}
@@ -142,7 +144,7 @@ export function FilterPanel({
             onClick={() => onChange({ language: null })}
           >
             <span className="lang-dot all" />
-            All languages
+            {t('filter.allLanguages')}
           </button>
           {languages.map((language) => (
             <button
@@ -164,16 +166,16 @@ export function FilterPanel({
             aria-expanded={showAllLanguages}
             onClick={() => setShowAllLanguages((value) => !value)}
           >
-            {showAllLanguages ? 'Show fewer' : `Show all ${LANGUAGES.length}`}
+            {showAllLanguages ? t('filter.fewer') : t('filter.all', { count: LANGUAGES.length })}
           </button>
         )}
       </section>
 
       <details className="advanced-filters" key={`${params.minStars}-${params.createdWithin}-${params.topic}`} open={!!(params.minStars || params.createdWithin || params.topic)}>
-        <summary>More filters <ChevronDown size={14} /></summary>
+        <summary>{t('filter.more')} <ChevronDown size={14} /></summary>
         <div className="advanced-filter-content">
       <section className="filter-section">
-        <div className="section-label">Minimum stars</div>
+        <div className="section-label">{t('filter.minStars')}</div>
         <div className="segmented">
           {MIN_STAR_OPTIONS.map((option) => (
             <button
@@ -181,14 +183,14 @@ export function FilterPanel({
               className={params.minStars === option.value ? 'active' : ''}
               onClick={() => onChange({ minStars: option.value || null })}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
       </section>
 
       <section className="filter-section">
-        <div className="section-label">Created</div>
+        <div className="section-label">{t('filter.created')}</div>
         <div className="segmented wrap">
           {AGE_OPTIONS.map((option) => (
             <button
@@ -196,14 +198,14 @@ export function FilterPanel({
               className={params.createdWithin === option.value ? 'active' : ''}
               onClick={() => onChange({ createdWithin: option.value || null })}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
       </section>
 
       <section className="filter-section">
-        <div className="section-label">Topics</div>
+        <div className="section-label">{t('filter.topics')}</div>
         <div className="topic-filter-grid">
           {TOPICS.map((topic) => (
             <button
@@ -212,7 +214,7 @@ export function FilterPanel({
               onClick={() => onChange({ topic: params.topic === topic.id ? null : topic.id })}
             >
               <span className="topic-dot" style={{ background: topic.color }} />
-              {topic.label}
+              {t(`topic.${topic.id}.label`)}
             </button>
           ))}
         </div>
@@ -221,10 +223,10 @@ export function FilterPanel({
         </div>
       </details>
 
-      <button className="quota-card" onClick={refreshHealth} title="Refresh API quota">
+      <button className="quota-card" onClick={refreshHealth} title={t('filter.quotaTitle')}>
         <div className="quota-head">
           <span>
-            <Activity size={13} /> GitHub quota
+            <Activity size={13} /> {t('filter.quota')}
           </span>
           <span className={low ? 'quota-low' : ''}>
             {rate ? `${rate.remaining}/${rate.limit}` : '…'}
@@ -238,8 +240,8 @@ export function FilterPanel({
         </span>
         <span className="quota-foot">
           {health?.hasToken
-            ? 'Authenticated with GitHub'
-            : `Resets in ${rate ? timeUntil(rate.reset) : '—'} · add a token for 5,000/h`}
+            ? t('filter.authenticated')
+            : t('filter.quotaFoot', { time: rate ? timeUntil(rate.reset) : '—' })}
         </span>
       </button>
     </div>

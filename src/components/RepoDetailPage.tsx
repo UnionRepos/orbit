@@ -43,6 +43,7 @@ import { renderMarkdown } from '../lib/markdown.ts'
 import { cacheRepo, cachedRepo } from '../lib/repoCache.ts'
 import { navigate, repoPath, userPath, type Route } from '../lib/router.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n } from '../i18n/index.ts'
 import { RepoCard } from './RepoCard.tsx'
 import { EmptyState } from './EmptyState.tsx'
 import { DetailSkeleton, ReadmeSkeleton } from './Skeletons.tsx'
@@ -53,6 +54,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
   const repoName = route.repo ?? ''
   const fullName = `${owner}/${repoName}`
   const { isSaved, toggleSave, toast, addRecent, saved } = useOrbit()
+  const { t } = useI18n()
 
   const fallback =
     cachedRepo(fullName) ??
@@ -99,21 +101,21 @@ export function RepoDetailPage({ route }: { route: Route }) {
       .then((result) => setReadme(result))
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
-        setReadmeError((err as ApiError).message || 'The README could not be loaded.')
+        setReadmeError((err as ApiError).message || t('detail.readmeError'))
       })
       .finally(() => {
         if (!controller.signal.aborted) setReadmeLoading(false)
       })
 
     return () => controller.abort()
-  }, [owner, repoName, attempt, fullName, addRecent])
+  }, [owner, repoName, attempt, fullName, addRecent, t])
 
   useEffect(() => {
     document.title = `${repo?.name ?? repoName} · ${owner} · Orbit`
     return () => {
-      document.title = 'Orbit — open source, in motion'
+      document.title = t('app.title.feed')
     }
-  }, [repo?.name, repoName, owner])
+  }, [repo?.name, repoName, owner, t])
 
   const similarKey = repo?.topics[0] ?? repo?.language ?? ''
   useEffect(() => {
@@ -168,23 +170,25 @@ export function RepoDetailPage({ route }: { route: Route }) {
     return (
       <div className="page-narrow">
         <button className="back-link" onClick={() => navigate('/')}>
-          <ArrowLeft size={15} /> Back to discover
+          <ArrowLeft size={15} /> {t('common.back')}
         </button>
         <EmptyState
           icon={<AlertTriangle size={22} />}
-          title="This repository is out of reach"
+          title={t('detail.notFoundTitle')}
           description={
             error
-              ? `${error.message}${error.reset ? ` The GitHub quota resets in about ${timeUntil(error.reset)}.` : ''}`
-              : 'The project may have been renamed, deleted or made private.'
+              ? error.reset
+                ? t('detail.notFoundQuota', { message: error.message, time: timeUntil(error.reset) })
+                : error.message
+              : t('detail.notFoundBody')
           }
           action={
             <div className="empty-actions">
               <button className="btn btn-primary" onClick={() => setAttempt((value) => value + 1)}>
-                Try again
+                {t('common.tryAgain')}
               </button>
               <button className="btn" onClick={() => navigate('/')}>
-                Explore something else
+                {t('detail.exploreElsewhere')}
               </button>
             </div>
           }
@@ -201,48 +205,51 @@ export function RepoDetailPage({ route }: { route: Route }) {
 
   const saveRepo = () => {
     const now = toggleSave(repo)
-    toast(now ? 'Saved to your reading list' : 'Removed from your reading list', now ? 'success' : 'info')
+    toast(now ? t('detail.savedToast') : t('detail.unsavedToast'), now ? 'success' : 'info')
   }
 
   const copyShare = async () => {
     const ok = await copyText(repo.htmlUrl)
-    toast(ok ? 'Repository link copied' : 'Could not copy the link', ok ? 'success' : 'error')
+    toast(ok ? t('detail.linkCopied') : t('detail.copyLinkFailed'), ok ? 'success' : 'error')
   }
 
   const stats = [
     {
       icon: <Star size={15} />,
-      label: 'Stars',
+      label: t('detail.statStars'),
       value: fullNumber(repo.stars),
-      hint: `${starVelocity(repo.starsPerDay)} avg`,
+      hint: t('detail.statVelocity', { velocity: starVelocity(repo.starsPerDay) }),
     },
     {
       icon: <GitFork size={15} />,
-      label: 'Forks',
+      label: t('detail.statForks'),
       value: compactNumber(repo.forks),
-      hint: repo.stars > 0 ? `${Math.round((repo.forks / repo.stars) * 100)}% of stars` : '—',
+      hint:
+        repo.stars > 0
+          ? t('detail.statForksHint', { percent: Math.round((repo.forks / repo.stars) * 100) })
+          : '—',
     },
     {
       icon: <MessageCircle size={15} />,
-      label: 'Open issues',
+      label: t('detail.statIssues'),
       value: compactNumber(repo.openIssues),
-      hint: 'community queue',
+      hint: t('detail.statIssuesHint'),
     },
     {
       icon: <Eye size={15} />,
-      label: 'Watchers',
+      label: t('detail.statWatchers'),
       value: compactNumber(repo.watchers),
-      hint: 'following updates',
+      hint: t('detail.statWatchersHint'),
     },
     {
       icon: <CalendarDays size={15} />,
-      label: 'Created',
+      label: t('detail.statCreated'),
       value: dateLabel(repo.createdAt),
       hint: relativeTime(repo.createdAt),
     },
     {
       icon: <Clock3 size={15} />,
-      label: 'Last push',
+      label: t('detail.statPushed'),
       value: relativeTime(repo.pushedAt),
       hint: dateLabel(repo.pushedAt),
     },
@@ -251,12 +258,12 @@ export function RepoDetailPage({ route }: { route: Route }) {
   return (
     <div className="detail-page">
       <button className="back-link" onClick={() => navigate('/')}>
-        <ArrowLeft size={15} /> Back to discover
+        <ArrowLeft size={15} /> {t('common.back')}
       </button>
 
       <section className="repo-hero">
         <div className="hero-top">
-          <img className="hero-avatar" src={repo.owner.avatarUrl} alt={`${owner} avatar`} />
+          <img className="hero-avatar" src={repo.owner.avatarUrl} alt={t('detail.avatarAlt', { login: owner })} />
           <div className="hero-title">
             <button className="hero-owner" onClick={() => navigate(userPath(repo.owner.login))}>
               {repo.owner.login}
@@ -267,7 +274,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
           <div className="hero-top-actions">
             <span className={`source-pill source-${detail?.source ?? 'live'}`}>
               <span className="source-dot" />
-              {detail?.source === 'live' ? 'Live' : detail?.source ?? 'GitHub'}
+              {detail?.source === 'live' ? t('detail.live') : detail?.source ?? 'GitHub'}
             </span>
             <a className="btn btn-ghost" href={repo.htmlUrl} target="_blank" rel="noreferrer">
               <GithubIcon size={15} />
@@ -278,7 +285,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
         </div>
 
         <p className="hero-description">
-          {repo.description || 'This project has not written a description yet.'}
+          {repo.description || t('detail.descriptionMissing')}
         </p>
 
         {repo.topics.length > 0 && (
@@ -299,11 +306,11 @@ export function RepoDetailPage({ route }: { route: Route }) {
 
         <div className="hero-actions">
           <a className="btn btn-primary" href={repo.htmlUrl} target="_blank" rel="noreferrer">
-            <Star size={15} /> Star on GitHub
+            <Star size={15} /> {t('detail.star')}
           </a>
           <button className={`btn ${savedNow ? 'btn-saved' : ''}`} onClick={saveRepo}>
             {savedNow ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
-            {savedNow ? 'Saved' : 'Save'}
+            {savedNow ? t('detail.saved') : t('detail.save')}
           </button>
           {repo.homepage && (
             <a
@@ -317,7 +324,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
               <ArrowUpRight size={12} />
             </a>
           )}
-          <button className="btn icon-only" onClick={copyShare} title="Copy repository link">
+          <button className="btn icon-only" onClick={copyShare} title={t('detail.copyLink')}>
             <Share2 size={15} />
           </button>
         </div>
@@ -326,11 +333,11 @@ export function RepoDetailPage({ route }: { route: Route }) {
           <span className="momentum-chip">
             <TrendingUp size={13} /> {starVelocity(repo.starsPerDay)}
           </span>
-          <span className="momentum-copy">average stars per day since launch</span>
+          <span className="momentum-copy">{t('detail.velocityCopy')}</span>
           <span className="momentum-meter">
             <span style={{ width: `${repo.heat}%` }} />
           </span>
-          <span className="momentum-score">{repo.heat}<small>/100 momentum</small></span>
+          <span className="momentum-score">{repo.heat}<small>{t('detail.momentum')}</small></span>
         </div>
       </section>
 
@@ -348,7 +355,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
       {detail?.partial && (
         <div className="notice-card">
           <AlertTriangle size={15} />
-          <span>Some live details (languages, contributors or releases) are temporarily unavailable.</span>
+          <span>{t('detail.partial')}</span>
         </div>
       )}
 
@@ -358,21 +365,21 @@ export function RepoDetailPage({ route }: { route: Route }) {
             <header className="readme-head">
               <span className="readme-file">
                 <FileText size={15} />
-                {readme?.path ?? 'README'}
+                {readme?.path ?? t('detail.readme')}
               </span>
               {readme && (
                 <span className="readme-size">
-                  {compactNumber(readme.markdown.split(/\s+/).length)} words
+                  {t('detail.words', { count: compactNumber(readme.markdown.split(/\s+/).length) })}
                 </span>
               )}
               <div className="readme-actions">
                 {readme && (
                   <button
                     className="icon-btn"
-                    title="Copy raw markdown"
+                    title={t('detail.copyRaw')}
                     onClick={async () => {
                       const ok = await copyText(readme.markdown)
-                      toast(ok ? 'README markdown copied' : 'Could not copy', ok ? 'success' : 'error')
+                      toast(ok ? t('detail.rawCopied') : t('detail.copyFailed'), ok ? 'success' : 'error')
                     }}
                   >
                     <Copy size={14} />
@@ -383,7 +390,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
                   href={readme?.htmlUrl ?? `${repo.htmlUrl}#readme`}
                   target="_blank"
                   rel="noreferrer"
-                  title="View this README on GitHub"
+                  title={t('detail.viewReadme')}
                 >
                   <ExternalLink size={14} />
                 </a>
@@ -396,11 +403,11 @@ export function RepoDetailPage({ route }: { route: Route }) {
               <div className="readme-error">
                 <FileText size={20} />
                 <div>
-                  <strong>README unavailable</strong>
+                  <strong>{t('detail.readmeUnavailable')}</strong>
                   <p>{readmeError}</p>
                 </div>
                 <a className="btn" href={`${repo.htmlUrl}#readme`} target="_blank" rel="noreferrer">
-                  Read on GitHub <ArrowUpRight size={13} />
+                  {t('detail.readOnGithub')} <ArrowUpRight size={13} />
                 </a>
               </div>
             )}
@@ -419,7 +426,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
             <section className="similar-section">
               <div className="similar-head">
                 <h2>
-                  <Sparkles size={16} /> Related projects
+                  <Sparkles size={16} /> {t('detail.related')}
                 </h2>
                 <button
                   className="link-btn"
@@ -431,7 +438,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
                     )
                   }
                 >
-                  Explore topic <ArrowUpRight size={13} />
+                  {t('detail.exploreTopic')} <ArrowUpRight size={13} />
                 </button>
               </div>
               <div className="similar-grid">
@@ -447,7 +454,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
           {rendered && rendered.toc.filter((item) => item.level <= 3).length > 1 && (
             <section className="aside-card toc-card">
               <h2 className="aside-title">
-                <ListTree size={14} /> On this page
+                <ListTree size={14} /> {t('detail.toc')}
               </h2>
               <nav className="toc">
                 {rendered.toc
@@ -473,7 +480,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
 
           <section className="aside-card">
             <h2 className="aside-title">
-              <GithubIcon size={14} /> About
+              <GithubIcon size={14} /> {t('detail.about')}
             </h2>
             <div className="owner-row">
               <img src={repo.owner.avatarUrl} alt="" loading="lazy" />
@@ -486,7 +493,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
               <button
                 className="owner-view"
                 onClick={() => navigate(userPath(repo.owner.login))}
-                title="View profile"
+                title={t('detail.viewProfile')}
               >
                 <ArrowUpRight size={14} />
               </button>
@@ -494,32 +501,32 @@ export function RepoDetailPage({ route }: { route: Route }) {
             <dl className="meta-list">
               {repo.license && (
                 <div>
-                  <dt><Scale size={13} /> License</dt>
+                  <dt><Scale size={13} /> {t('detail.license')}</dt>
                   <dd>{repo.license}</dd>
                 </div>
               )}
               <div>
-                <dt><Code2 size={13} /> Language</dt>
+                <dt><Code2 size={13} /> {t('detail.language')}</dt>
                 <dd>
                   <span className="lang-dot" style={{ background: color }} />
-                  {repo.language ?? 'Unknown'}
+                  {repo.language ?? t('common.unknown')}
                 </dd>
               </div>
               <div>
-                <dt><Package size={13} /> Size</dt>
+                <dt><Package size={13} /> {t('detail.size')}</dt>
                 <dd>{compactNumber(repo.size)} KB</dd>
               </div>
               <div>
-                <dt><CalendarDays size={13} /> Created</dt>
+                <dt><CalendarDays size={13} /> {t('detail.created')}</dt>
                 <dd>{dateLabel(repo.createdAt)}</dd>
               </div>
               <div>
-                <dt><Clock3 size={13} /> Updated</dt>
+                <dt><Clock3 size={13} /> {t('detail.updated')}</dt>
                 <dd>{relativeTime(repo.updatedAt)}</dd>
               </div>
               {repo.homepage && (
                 <div>
-                  <dt><Globe size={13} /> Homepage</dt>
+                  <dt><Globe size={13} /> {t('detail.homepage')}</dt>
                   <dd>
                     <a href={repo.homepage.startsWith('http') ? repo.homepage : `https://${repo.homepage}`} target="_blank" rel="noreferrer">
                       {hostname(repo.homepage)}
@@ -530,13 +537,13 @@ export function RepoDetailPage({ route }: { route: Route }) {
             </dl>
             <div className="quick-links">
               <a href={`${repo.htmlUrl}/issues`} target="_blank" rel="noreferrer">
-                Issues <ArrowUpRight size={12} />
+                {t('detail.issues')} <ArrowUpRight size={12} />
               </a>
               <a href={`${repo.htmlUrl}/pulls`} target="_blank" rel="noreferrer">
-                Pulls <ArrowUpRight size={12} />
+                {t('detail.pulls')} <ArrowUpRight size={12} />
               </a>
               <a href={`${repo.htmlUrl}/releases`} target="_blank" rel="noreferrer">
-                Releases <ArrowUpRight size={12} />
+                {t('detail.releases')} <ArrowUpRight size={12} />
               </a>
             </div>
           </section>
@@ -544,7 +551,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
           {languages.length > 0 && (
             <section className="aside-card">
               <h2 className="aside-title">
-                <Code2 size={14} /> Languages
+                <Code2 size={14} /> {t('detail.languages')}
               </h2>
               <div className="language-bar">
                 {languages.slice(0, 8).map((language) => (
@@ -570,7 +577,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
           {contributors.length > 0 && (
             <section className="aside-card">
               <h2 className="aside-title">
-                <Users size={14} /> Contributors
+                <Users size={14} /> {t('detail.contributors')}
               </h2>
               <div className="contributor-grid">
                 {contributors.slice(0, 12).map((contributor) => (
@@ -579,7 +586,10 @@ export function RepoDetailPage({ route }: { route: Route }) {
                     href={contributor.htmlUrl}
                     target="_blank"
                     rel="noreferrer"
-                    title={`${contributor.login} · ${contributor.contributions} contributions`}
+                    title={t('detail.contributions', {
+                      login: contributor.login,
+                      count: contributor.contributions,
+                    })}
                   >
                     <img src={contributor.avatarUrl} alt={contributor.login} loading="lazy" />
                   </a>
@@ -591,14 +601,14 @@ export function RepoDetailPage({ route }: { route: Route }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                All contributors <ArrowUpRight size={12} />
+                {t('detail.allContributors')} <ArrowUpRight size={12} />
               </a>
             </section>
           )}
 
           <section className="aside-card">
             <h2 className="aside-title">
-              <Tag size={14} /> Releases
+              <Tag size={14} /> {t('detail.releases')}
             </h2>
             {releases.length > 0 ? (
               <ul className="release-list">
@@ -611,14 +621,14 @@ export function RepoDetailPage({ route }: { route: Route }) {
                       <span className="release-name">{release.name}</span>
                       <span className="release-meta">
                         {relativeTime(release.publishedAt)}
-                        {release.prerelease && <em>pre-release</em>}
+                        {release.prerelease && <em>{t('detail.preRelease')}</em>}
                       </span>
                     </a>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="aside-empty">No published releases yet.</p>
+              <p className="aside-empty">{t('detail.noReleases')}</p>
             )}
           </section>
 
@@ -626,7 +636,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
             className="aside-cta"
             onClick={() => navigate(repoPath(repo.owner.login, repo.name))}
           >
-            <Check size={14} /> You are viewing this project
+            <Check size={14} /> {t('detail.viewing')}
           </button>
         </aside>
       </div>

@@ -14,7 +14,7 @@
     />
     <title>Orbit — open source, in motion</title>
     <script>
-      // Apply the saved theme before first paint to avoid a flash.
+      // Apply the saved theme and language before first paint to avoid a flash.
       try {
         const saved = localStorage.getItem('orbit:theme:v1')
         const theme =
@@ -23,7 +23,17 @@
             : window.matchMedia('(prefers-color-scheme: light)').matches
               ? 'light'
               : 'dark'
+        const storedLocale = localStorage.getItem('orbit:locale:v1')
+        const browserLocales = navigator.languages || [navigator.language]
+        const preferred = browserLocales.find((tag) => /^(zh|en)/i.test(String(tag)))
+        const locale =
+          storedLocale === 'zh' || storedLocale === 'en'
+            ? storedLocale
+            : String(preferred).toLowerCase().startsWith('zh')
+              ? 'zh'
+              : 'en'
         document.documentElement.dataset.theme = theme
+        document.documentElement.lang = locale
       } catch {
         /* localStorage can be unavailable in private modes */
       }

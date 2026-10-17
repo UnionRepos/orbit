@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { UserProfile, UserResponse } from '../../shared/types.ts'
 import { getUser, type ApiError } from '../lib/api.ts'
+import { useI18n } from '../i18n/index.ts'
 import { compactNumber, dateLabel, monthYear } from '../lib/format.ts'
 import { cacheRepos } from '../lib/repoCache.ts'
 import { navigate, userPath, type Route } from '../lib/router.ts'
@@ -27,6 +28,7 @@ export function UserPage({ route }: { route: Route }) {
   const [error, setError] = useState<ApiError | null>(null)
   const [loading, setLoading] = useState(true)
   const [attempt, setAttempt] = useState(0)
+  const { t } = useI18n()
 
   useEffect(() => {
     if (!login) return
@@ -51,9 +53,9 @@ export function UserPage({ route }: { route: Route }) {
     if (!login) return
     document.title = `${login} · Orbit`
     return () => {
-      document.title = 'Orbit — open source, in motion'
+      document.title = t('app.title.feed')
     }
-  }, [login])
+  }, [login, t])
 
   if (loading) {
     return (
@@ -73,15 +75,15 @@ export function UserPage({ route }: { route: Route }) {
     return (
       <div className="page-narrow">
         <button className="back-link" onClick={() => navigate('/')}>
-          <ArrowLeft size={15} /> Back to discover
+          <ArrowLeft size={15} /> {t('common.back')}
         </button>
         <EmptyState
           icon={<AlertTriangle size={22} />}
-          title={`Could not load @${login}`}
-          description={error?.message ?? 'This GitHub profile is unavailable.'}
+          title={t('user.loadFailed', { login })}
+          description={error?.message ?? t('user.unavailable')}
           action={
             <button className="btn btn-primary" onClick={() => setAttempt((value) => value + 1)}>
-              <RefreshCw size={14} /> Try again
+              <RefreshCw size={14} /> {t('common.tryAgain')}
             </button>
           }
         />
@@ -95,15 +97,15 @@ export function UserPage({ route }: { route: Route }) {
   return (
     <div className="profile-page">
       <button className="back-link" onClick={() => navigate('/')}>
-        <ArrowLeft size={15} /> Back to discover
+        <ArrowLeft size={15} /> {t('common.back')}
       </button>
 
       <section className="profile-hero">
         <span className="profile-glow" aria-hidden="true" />
-        <img className="profile-avatar" src={user.avatarUrl} alt={`${user.login} avatar`} />
+        <img className="profile-avatar" src={user.avatarUrl} alt={t('user.avatarAlt', { login: user.login })} />
         <div className="profile-main">
           <div className="profile-eyebrow">
-            {user.type === 'Organization' ? 'Organization' : 'Developer'} · on GitHub
+            {user.type === 'Organization' ? t('user.eyebrowOrg') : t('user.eyebrowDev')}
           </div>
           <h1>{user.name ?? user.login}</h1>
           <button className="profile-login" onClick={() => navigate(userPath(user.login))}>
@@ -141,17 +143,17 @@ export function UserPage({ route }: { route: Route }) {
               </a>
             )}
             <span>
-              <CalendarDays size={13} /> Joined {monthYear(user.createdAt)}
+              <CalendarDays size={13} /> {t('user.joined', { date: monthYear(user.createdAt) })}
             </span>
           </div>
         </div>
 
         <div className="profile-actions">
           <a className="btn btn-primary" href={user.htmlUrl} target="_blank" rel="noreferrer">
-            <GithubIcon size={15} /> Follow on GitHub
+            <GithubIcon size={15} /> {t('user.follow')}
           </a>
           <button className="btn" onClick={() => navigate('/')}>
-            Keep browsing
+            {t('user.keepBrowsing')}
           </button>
         </div>
       </section>
@@ -159,33 +161,33 @@ export function UserPage({ route }: { route: Route }) {
       <section className="profile-stats">
         <div>
           <strong>{compactNumber(user.followers)}</strong>
-          <span>followers</span>
+          <span>{t('user.statFollowers')}</span>
         </div>
         <div>
           <strong>{compactNumber(user.following)}</strong>
-          <span>following</span>
+          <span>{t('user.statFollowing')}</span>
         </div>
         <div>
           <strong>{compactNumber(user.publicRepos)}</strong>
-          <span>public repos</span>
+          <span>{t('user.statRepos')}</span>
         </div>
         <div>
           <strong>{compactNumber(totalStars)}</strong>
-          <span>stars in top projects</span>
+          <span>{t('user.statStars')}</span>
         </div>
         <div>
           <strong>{dateLabel(user.createdAt)}</strong>
-          <span>joined GitHub</span>
+          <span>{t('user.statJoined')}</span>
         </div>
       </section>
 
       <section className="profile-repos">
         <div className="profile-section-head">
           <h2>
-            <Sparkles size={16} /> Popular repositories
+            <Sparkles size={16} /> {t('user.popular')}
           </h2>
           <span>
-            <Users size={13} /> strongest public work
+            <Users size={13} /> {t('user.strongest')}
           </span>
         </div>
 
@@ -198,11 +200,11 @@ export function UserPage({ route }: { route: Route }) {
         ) : (
           <EmptyState
             icon={<GithubIcon size={22} />}
-            title="No public repositories"
-            description={`@${user.login} has not published any public projects yet.`}
+            title={t('user.emptyTitle')}
+            description={t('user.emptyBody', { login: user.login })}
             action={
               <a className="btn" href={user.htmlUrl} target="_blank" rel="noreferrer">
-                Visit GitHub profile <ArrowUpRight size={13} />
+                {t('user.visit')} <ArrowUpRight size={13} />
               </a>
             }
           />
@@ -210,7 +212,7 @@ export function UserPage({ route }: { route: Route }) {
       </section>
 
       <p className="profile-source">
-        Profile data from GitHub · {data.source === 'live' ? 'live' : 'cached'}
+        {data.source === 'live' ? t('user.sourceLive') : t('user.sourceCached')}
       </p>
     </div>
   )

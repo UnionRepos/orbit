@@ -12,8 +12,9 @@ import {
   X,
 } from 'lucide-react'
 import type { ChannelId } from '../../shared/types.ts'
-import { CHANNELS, channelMeta } from '../../shared/channels.ts'
+import { CHANNELS } from '../../shared/channels.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { useI18n } from '../i18n/index.ts'
 import { useFeed } from '../hooks/useFeed.ts'
 import { useDialogFocus, useInView } from '../hooks/useUtils.ts'
 import { feedParamsFromRoute, patchFeedQuery, SORT_OPTIONS } from '../lib/feed.ts'
@@ -31,10 +32,10 @@ export function FeedPage({ route }: { route: Route }) {
   const params = useMemo(() => feedParamsFromRoute(route), [route])
   const feed = useFeed(params)
   const { saved, toast } = useOrbit()
+  const { t, tp } = useI18n()
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetRef = useDialogFocus<HTMLDivElement>(sheetOpen)
   const meta = feed.meta
-  const channel = channelMeta(params.channel)
 
   useEffect(() => {
     if (!sheetOpen) return
@@ -77,14 +78,14 @@ export function FeedPage({ route }: { route: Route }) {
     if (params.minStars) {
       chips.push({
         key: 'minStars',
-        label: `${compactNumber(params.minStars)}+ stars`,
+        label: t('feed.chip.stars', { count: compactNumber(params.minStars) }),
         patch: { minStars: null },
       })
     }
     if (params.createdWithin) {
       chips.push({
         key: 'createdWithin',
-        label: `created in ${params.createdWithin}d`,
+        label: t('feed.chip.created', { count: params.createdWithin }),
         patch: { createdWithin: null },
       })
     }
@@ -92,21 +93,21 @@ export function FeedPage({ route }: { route: Route }) {
       chips.push({ key: 'q', label: `“${params.q}”`, patch: { q: null } })
     }
     return chips
-  }, [params])
+  }, [params, t])
 
   const sentinel = useInView<HTMLDivElement>(
     feed.loadMore,
     feed.hasMore && !feed.loadingMore && feed.status === 'ready',
   )
 
-  const title = params.q ? `Results for “${params.q}”` : channel.label
+  const title = params.q ? t('feed.resultsFor', { q: params.q }) : t(`channel.${params.channel}.label`)
   const description = params.q
-    ? 'Repositories matching your search. Narrow the results with language and topic filters.'
-    : channel.description
+    ? t('feed.searchDescription')
+    : t(`channel.${params.channel}.description`)
 
   function surprise() {
     if (feed.items.length === 0) {
-      toast('Nothing loaded yet — give the feed a moment.', 'info')
+      toast(t('feed.nothingLoaded'), 'info')
       return
     }
     const pick = feed.items[Math.floor(Math.random() * feed.items.length)]
@@ -119,9 +120,9 @@ export function FeedPage({ route }: { route: Route }) {
 
   const resultsLabel = meta
     ? meta.total > 1000
-      ? `${fullNumber(meta.total)} projects (first 1,000 searchable)`
-      : `${fullNumber(meta.total)} project${meta.total === 1 ? '' : 's'}`
-    : 'Searching GitHub…'
+      ? t('feed.resultsCapped', { count: fullNumber(meta.total) })
+      : tp('feed.results', meta.total)
+    : t('feed.searching')
 
   return (
     <div className="feed-layout">
@@ -140,20 +141,20 @@ export function FeedPage({ route }: { route: Route }) {
                 onClick={() => goChannel(item.id)}
               >
                 <ChannelIcon icon={item.icon} size={14} />
-                {item.short}
+                {t(`channel.${item.id}.short`)}
               </button>
             ))}
           </div>
           <button className="filter-trigger" onClick={() => setSheetOpen(true)}>
             <SlidersHorizontal size={15} />
-            Filters
+            {t('feed.filters')}
             {activeFilters.length > 0 && <span>{activeFilters.length}</span>}
           </button>
         </div>
 
         <header className="feed-header">
           <div className="eyebrow">
-            {params.q ? 'Search' : 'The open-source directory'}
+            {params.q ? t('feed.searchEyebrow') : t('feed.eyebrow')}
             {params.language && <span className="eyebrow-sep">·</span>}
             {params.language && <span>{params.language}</span>}
             {params.topic && <span className="eyebrow-sep">·</span>}
@@ -162,7 +163,7 @@ export function FeedPage({ route }: { route: Route }) {
           <div className="feed-heading-row">
             <h1>{title}</h1>
             <button className="discovery-random" onClick={surprise} disabled={!feed.items.length}>
-              Take a detour <ArrowUpRight size={16} />
+              {t('feed.detour')} <ArrowUpRight size={16} />
             </button>
           </div>
           <p className="feed-description">{description}</p>
@@ -173,12 +174,12 @@ export function FeedPage({ route }: { route: Route }) {
               <>
                 <span className="meta-sep">·</span>
                 <span>
-                  updated {relativeTime(new Date(meta.fetchedAt).toISOString())}
+                  {t('feed.updated', { time: relativeTime(new Date(meta.fetchedAt).toISOString()) })}
                 </span>
                 <span className="meta-sep">·</span>
                 <span className={`source-inline source-${meta.source}`}>
                   <span className="source-dot" />
-                  {{ live: 'Live from GitHub', cache: 'Cached results', stale: 'Offline snapshot', seed: 'Curated collection' }[meta.source]}
+                  {t(`feed.source.${meta.source}`)}
                 </span>
               </>
             )}
@@ -194,20 +195,20 @@ export function FeedPage({ route }: { route: Route }) {
                     key={chip.key}
                     className="filter-chip"
                     onClick={() => apply(chip.patch)}
-                    title={`Remove ${chip.label} filter`}
-                    aria-label={`Remove ${chip.label} filter`}
+                    title={t('feed.chip.remove', { label: chip.label })}
+                    aria-label={t('feed.chip.remove', { label: chip.label })}
                   >
                     {chip.label}
                     <X size={12} />
                   </button>
                 ))}
                 <button className="clear-filters" onClick={resetFilters}>
-                  Clear all
+                  {t('feed.clearAll')}
                 </button>
               </div>
             ) : (
               <span className="toolbar-hint">
-                {params.q ? 'Search results' : 'Explore repositories'}
+                {params.q ? t('feed.searchResults') : t('feed.explore')}
               </span>
             )}
           </div>
@@ -220,11 +221,11 @@ export function FeedPage({ route }: { route: Route }) {
                 onChange={(event) =>
                   apply({ sort: event.target.value === 'best' ? null : event.target.value })
                 }
-                aria-label="Sort projects"
+                aria-label={t('feed.sortAria')}
               >
                 {SORT_OPTIONS.map((option) => (
                   <option value={option.value} key={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </select>
@@ -234,8 +235,8 @@ export function FeedPage({ route }: { route: Route }) {
               className="toolbar-btn icon-only"
               onClick={feed.refresh}
               disabled={feed.refreshing}
-              title="Refresh this feed"
-              aria-label="Refresh feed"
+              title={t('feed.refreshTitle')}
+              aria-label={t('feed.refreshAria')}
             >
               <RefreshCw size={14} className={feed.refreshing ? 'spinning' : ''} />
             </button>
@@ -246,17 +247,16 @@ export function FeedPage({ route }: { route: Route }) {
           <div className="alert-card">
             <AlertTriangle size={18} />
             <div className="alert-body">
-              <strong>GitHub is temporarily unavailable</strong>
+              <strong>{t('feed.errorTitle')}</strong>
               <p>{feed.error.message}</p>
               {feed.error.reset ? (
                 <span className="alert-meta">
-                  Quota resets in about {timeUntil(feed.error.reset)}. Cached and curated results
-                  stay available.
+                  {t('feed.errorQuota', { time: timeUntil(feed.error.reset) })}
                 </span>
               ) : null}
             </div>
             <button onClick={feed.refresh} disabled={feed.refreshing}>
-              Retry
+              {t('feed.retry')}
             </button>
           </div>
         )}
@@ -273,11 +273,11 @@ export function FeedPage({ route }: { route: Route }) {
         {feed.status === 'error' && feed.items.length === 0 && !feed.error && (
           <EmptyState
             icon={<AlertTriangle size={22} />}
-            title="The feed could not load"
-            description="Something interrupted the GitHub request. Try again or revisit a saved project."
+            title={t('feed.emptyErrorTitle')}
+            description={t('feed.emptyErrorBody')}
             action={
               <button className="btn btn-primary" onClick={feed.refresh}>
-                <RefreshCw size={14} /> Try again
+                <RefreshCw size={14} /> {t('common.tryAgain')}
               </button>
             }
           />
@@ -286,11 +286,11 @@ export function FeedPage({ route }: { route: Route }) {
         {feed.status === 'ready' && feed.items.length === 0 && (
           <EmptyState
             icon={<SearchX size={22} />}
-            title="No projects match this combination"
-            description="Loosen the star count, pick a different language, or clear the topics to cast a wider net."
+            title={t('feed.emptyTitle')}
+            description={t('feed.emptyBody')}
             action={
               <button className="btn btn-primary" onClick={resetFilters}>
-                <Filter size={14} /> Reset filters
+                <Filter size={14} /> {t('feed.resetFilters')}
               </button>
             }
           />
@@ -314,15 +314,15 @@ export function FeedPage({ route }: { route: Route }) {
               <button onClick={feed.loadMore} disabled={feed.loadingMore}>
                 {feed.loadingMore ? (
                   <>
-                    <RefreshCw size={14} className="spinning" /> Loading more projects…
+                    <RefreshCw size={14} className="spinning" /> {t('feed.loadingMore')}
                   </>
                 ) : (
-                  <>Load more projects</>
+                  <>{t('feed.loadMore')}</>
                 )}
               </button>
             ) : (
               <span>
-                You’ve reached the end of this feed. {saved.length > 0 && 'Your reading list is waiting.'}
+                {t('feed.end')} {saved.length > 0 && t('feed.endSaved')}
               </span>
             )}
           </div>
@@ -336,7 +336,7 @@ export function FeedPage({ route }: { route: Route }) {
 
       {sheetOpen && (
         <div className="sheet-backdrop" onClick={() => setSheetOpen(false)}>
-          <div className="filter-sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label="Filter projects" tabIndex={-1} onClick={(event) => event.stopPropagation()}>
+          <div className="filter-sheet" ref={sheetRef} role="dialog" aria-modal="true" aria-label={t('feed.sheetAria')} tabIndex={-1} onClick={(event) => event.stopPropagation()}>
             <FilterPanel
               params={params}
               onChange={apply}
@@ -345,7 +345,7 @@ export function FeedPage({ route }: { route: Route }) {
               variant="sheet"
             />
             <button className="btn btn-primary sheet-done" onClick={() => setSheetOpen(false)}>
-              Show {meta ? compactNumber(meta.total) : ''} projects
+              {t('feed.showProjects', { count: meta ? compactNumber(meta.total) : '' })}
             </button>
           </div>
         </div>

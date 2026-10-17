@@ -83,6 +83,7 @@ src/                 React 19 client
   components/        Feed, detail, profile, saved, palette, About
   context/           OrbitProvider: theme, saved items, recents, toasts, health
   hooks/             useFeed, useRepoDetail, useUser, useSearch
+  i18n/              locale state, en/zh dictionaries, useI18n()
   lib/               router (hash-based), API client, Markdown, formatting
 server/              Hono API + static file server
   github.ts          GitHub REST client, ETag revalidation, quotas
@@ -118,6 +119,22 @@ about where the data came from.
 - Successful responses are written to `.orbit-cache/` with a TTL.
 - When GitHub is unavailable or throttled, the server serves stale cache first, then a filtered
   seed snapshot. The feed never renders an empty shell.
+
+## Internationalisation
+
+Orbit ships in English and Simplified Chinese (`zh`).
+
+- `src/i18n/en.ts` is the source of truth; `src/i18n/zh.ts` is typed as
+  `Record<keyof typeof en, string>`, so a missing key fails `npm run typecheck`.
+- Components call `const { t, tp } = useI18n()`; `tp` picks a plural variant from
+  `singular|plural` templates (Chinese uses a single form).
+- Plain helpers such as `relativeTime()` read the active locale from
+  `src/i18n/core.ts`, so number, date and relative-time formatting follow the UI.
+- The choice is stored in `localStorage` (`orbit:locale:v1`), defaults to the
+  browser language, and is applied before first paint in `index.html` so the
+  `lang` attribute and CJK font stack are correct immediately.
+- Add a language by creating `src/i18n/pt.ts`, registering it in `LOCALES`, and
+  adding it to `DICTIONARIES` — the typechecker lists anything still missing.
 
 ## Deploy to Cloudflare Workers
 

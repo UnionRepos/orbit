@@ -7,6 +7,7 @@ import {
   Gem,
   Home,
   Info,
+  Languages,
   Loader2,
   Moon,
   Search,
@@ -15,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useOrbit } from '../context/OrbitContext.tsx'
+import { localeMeta, useI18n } from '../i18n/index.ts'
 import { searchAll } from '../lib/api.ts'
 import { useDebounced, useDialogFocus } from '../hooks/useUtils.ts'
 import { compactNumber } from '../lib/format.ts'
@@ -48,6 +50,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 export function CommandPalette() {
   const { paletteOpen, closePalette, saved, recent, theme, toggleTheme, health } = useOrbit()
+  const { t, nextLocale, toggleLocale } = useI18n()
   const dialogRef = useDialogFocus<HTMLDivElement>(paletteOpen)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -95,19 +98,27 @@ export function CommandPalette() {
   const items = useMemo<PaletteItem[]>(() => {
     const search = query.trim().toLowerCase()
     const nav: PaletteItem[] = [
-      { id: 'feed', group: 'Go to', label: 'Discover feed', hint: 'Home', icon: <Home size={15} />, run: () => navigate('/') },
-      { id: 'trending', group: 'Go to', label: 'Trending projects', hint: 'Breakouts in 90 days', icon: <Flame size={15} />, run: () => navigate('/?channel=trending') },
-      { id: 'rising', group: 'Go to', label: 'Rising fast', hint: 'New momentum', icon: <TrendingUp size={15} />, run: () => navigate('/?channel=rising') },
-      { id: 'fresh', group: 'Go to', label: 'Active now', hint: 'Shipping this week', icon: <Zap size={15} />, run: () => navigate('/?channel=fresh') },
-      { id: 'gems', group: 'Go to', label: 'Hidden gems', hint: 'Under the radar', icon: <Gem size={15} />, run: () => navigate('/?channel=gems') },
-      { id: 'saved', group: 'Go to', label: 'Reading list', hint: `${saved.length} saved`, icon: <Bookmark size={15} />, run: () => navigate('/saved') },
-      { id: 'about', group: 'Go to', label: 'How Orbit works', hint: 'API, cache & tokens', icon: <Info size={15} />, run: () => navigate('/about') },
+      { id: 'feed', group: t('palette.goTo'), label: t('palette.discover'), hint: t('palette.discoverHint'), icon: <Home size={15} />, run: () => navigate('/') },
+      { id: 'trending', group: t('palette.goTo'), label: t('palette.trending'), hint: t('palette.trendingHint'), icon: <Flame size={15} />, run: () => navigate('/?channel=trending') },
+      { id: 'rising', group: t('palette.goTo'), label: t('palette.rising'), hint: t('palette.risingHint'), icon: <TrendingUp size={15} />, run: () => navigate('/?channel=rising') },
+      { id: 'fresh', group: t('palette.goTo'), label: t('palette.active'), hint: t('palette.activeHint'), icon: <Zap size={15} />, run: () => navigate('/?channel=fresh') },
+      { id: 'gems', group: t('palette.goTo'), label: t('palette.gems'), hint: t('palette.gemsHint'), icon: <Gem size={15} />, run: () => navigate('/?channel=gems') },
+      { id: 'saved', group: t('palette.goTo'), label: t('palette.readingList'), hint: t('palette.readingHint', { count: saved.length }), icon: <Bookmark size={15} />, run: () => navigate('/saved') },
+      { id: 'about', group: t('palette.goTo'), label: t('filter.how'), hint: t('palette.aboutHint'), icon: <Info size={15} />, run: () => navigate('/about') },
       {
         id: 'theme',
-        group: 'Preferences',
-        label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+        group: t('palette.prefs'),
+        label: theme === 'dark' ? t('topbar.themeToLight') : t('topbar.themeToDark'),
         icon: theme === 'dark' ? <Moon size={15} /> : <Star size={15} />,
         run: toggleTheme,
+      },
+      {
+        id: 'language',
+        group: t('palette.prefs'),
+        label: `${t('topbar.languageAria')} · ${localeMeta(nextLocale).label}`,
+        hint: localeMeta(nextLocale).short,
+        icon: <Languages size={15} />,
+        run: toggleLocale,
       },
     ]
 
@@ -126,9 +137,14 @@ export function CommandPalette() {
       .slice(0, search ? 5 : 4)
       .map<PaletteItem>((entry) => ({
         id: `saved-${entry.repo.fullName}`,
-        group: 'Reading list',
+        group: t('palette.readingList'),
         label: entry.repo.fullName,
-        hint: `${compactNumber(entry.repo.stars)} stars${entry.note ? ' · has note' : ''}`,
+        hint: entry.note
+          ? t('palette.hintNote', { stars: compactNumber(entry.repo.stars) })
+          : t('palette.hintLanguage', {
+              stars: compactNumber(entry.repo.stars),
+              language: entry.repo.language ?? t('common.unknown'),
+            }),
         avatar: entry.repo.owner.avatarUrl,
         run: () => {
           cacheRepo(entry.repo)
@@ -139,7 +155,7 @@ export function CommandPalette() {
     const recentItems = !search
       ? recent.slice(0, 3).map<PaletteItem>((entry) => ({
           id: `recent-${entry.repo.fullName}`,
-          group: 'Recently viewed',
+          group: t('palette.recent'),
           label: entry.repo.fullName,
           hint: entry.repo.language ?? undefined,
           avatar: entry.repo.owner.avatarUrl,
@@ -154,9 +170,12 @@ export function CommandPalette() {
       search && remote
         ? remote.repos.slice(0, 6).map<PaletteItem>((repo) => ({
             id: `repo-${repo.fullName}`,
-            group: 'GitHub projects',
+            group: t('palette.repos'),
             label: repo.fullName,
-            hint: `${compactNumber(repo.stars)} stars · ${repo.language ?? 'unknown'}`,
+            hint: t('palette.hintLanguage', {
+              stars: compactNumber(repo.stars),
+              language: repo.language ?? t('common.unknown'),
+            }),
             avatar: repo.owner.avatarUrl,
             run: () => {
               cacheRepo(repo)
@@ -170,9 +189,9 @@ export function CommandPalette() {
         ? [
             {
               id: `user-${remote.user.login}`,
-              group: 'People',
+              group: t('palette.people'),
               label: `@${remote.user.login}`,
-              hint: remote.user.name ?? `${compactNumber(remote.user.followers)} followers`,
+              hint: remote.user.name ?? t('palette.hintFollowers', { count: compactNumber(remote.user.followers) }),
               avatar: remote.user.avatarUrl,
               run: () => navigate(userPath(remote.user!.login)),
             },
@@ -183,9 +202,9 @@ export function CommandPalette() {
       ? [
           {
             id: 'search-github',
-            group: 'Search',
-            label: `Search all projects for “${query.trim()}”`,
-            hint: 'Opens the feed',
+            group: t('palette.search'),
+            label: t('palette.searchAll', { query: query.trim() }),
+            hint: t('palette.searchAllHint'),
             icon: <Search size={15} />,
             run: () => navigate(`/?q=${encodeURIComponent(query.trim())}`),
           },
@@ -193,7 +212,7 @@ export function CommandPalette() {
       : []
 
     return [...matchedNav, ...searchAction, ...remoteUser, ...remoteRepos, ...matchedSaved, ...recentItems]
-  }, [query, saved, recent, remote, theme, toggleTheme])
+  }, [query, saved, recent, remote, theme, toggleTheme, toggleLocale, nextLocale, t])
 
   useEffect(() => {
     setActive(0)
@@ -244,7 +263,7 @@ export function CommandPalette() {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Command menu"
+        aria-label={t('palette.aria')}
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
@@ -254,8 +273,8 @@ export function CommandPalette() {
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search projects, people, or jump anywhere…"
-            aria-label="Command menu search"
+            placeholder={t('palette.placeholder')}
+            aria-label={t('palette.searchAria')}
             spellCheck={false}
           />
           {remoteLoading ? (
@@ -269,7 +288,7 @@ export function CommandPalette() {
           {items.length === 0 && (
             <div className="cmdk-empty">
               <Search size={20} />
-              <p>No matches yet. Try another project, topic or username.</p>
+              <p>{t('palette.empty')}</p>
             </div>
           )}
 
@@ -310,17 +329,17 @@ export function CommandPalette() {
         <footer className="cmdk-footer">
           <span>
             <kbd>↑</kbd>
-            <kbd>↓</kbd> navigate
+            <kbd>↓</kbd> {t('palette.navigate')}
           </span>
           <span>
-            <kbd>↵</kbd> open
+            <kbd>↵</kbd> {t('palette.open')}
           </span>
           <span>
-            <kbd>esc</kbd> close
+            <kbd>esc</kbd> {t('palette.close')}
           </span>
           <span className="cmdk-status">
-            <Star size={12} /> {saved.length} saved
-            {health?.hasToken ? ' · authenticated' : ''}
+            <Star size={12} /> {t('palette.saved', { count: saved.length })}
+            {health?.hasToken ? ` · ${t('palette.authenticated')}` : ''}
           </span>
         </footer>
       </div>

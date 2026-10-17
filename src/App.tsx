@@ -8,6 +8,7 @@ import { SavedPage } from './components/SavedPage.tsx'
 import { AboutPage } from './components/AboutPage.tsx'
 import { CommandPalette } from './components/CommandPalette.tsx'
 import { Toasts } from './components/Toasts.tsx'
+import { I18nProvider, t, useI18n } from './i18n/index.ts'
 import { parseRoute, type Route } from './lib/router.ts'
 
 function useRoute(): Route {
@@ -30,16 +31,17 @@ function useRoute(): Route {
 
 function AppShell() {
   const route = useRoute()
+  const { locale, t } = useI18n()
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [route.path])
 
   useEffect(() => {
-    if (route.name === 'feed') document.title = 'Orbit — open source, in motion'
-    else if (route.name === 'saved') document.title = 'Reading list · Orbit'
-    else if (route.name === 'about') document.title = 'How Orbit works'
-  }, [route.name])
+    if (route.name === 'feed') document.title = t('app.title.feed')
+    else if (route.name === 'saved') document.title = t('app.title.saved')
+    else if (route.name === 'about') document.title = t('app.title.about')
+  }, [route.name, locale, t])
 
   let page: ReactNode
   switch (route.name) {
@@ -66,7 +68,7 @@ function AppShell() {
 
   return (
     <>
-      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus() }}>Skip to content</a>
+      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus() }}>{t('app.skip')}</a>
       <TopBar route={route} />
       <div className="page" id="main-content" tabIndex={-1}>{page}</div>
       <CommandPalette />
@@ -94,10 +96,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             <span className="brand-orbit" />
             <span className="brand-core" />
           </span>
-          <h1>Orbit lost its signal</h1>
-          <p>Something unexpected happened while rendering this view.</p>
+          <h1>{t('app.crash.title')}</h1>
+          <p>{t('app.crash.body')}</p>
           <button className="btn btn-primary" onClick={() => window.location.reload()}>
-            Reload the app
+            {t('app.crash.reload')}
           </button>
         </div>
       )
@@ -108,10 +110,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <OrbitProvider>
-        <AppShell />
-      </OrbitProvider>
-    </ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary>
+        <OrbitProvider>
+          <AppShell />
+        </OrbitProvider>
+      </ErrorBoundary>
+    </I18nProvider>
   )
 }

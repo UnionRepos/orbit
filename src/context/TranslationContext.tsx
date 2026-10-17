@@ -1,49 +1,50 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { isTranslationLanguage, type TranslationLanguage, type TranslationMode } from '../../shared/translation.ts'
-import { useI18n } from '../i18n/index.ts'
+import type { TranslationProgress } from '../lib/translationSession.ts'
 import { loadJSON, saveJSON } from '../lib/storage.ts'
 
-interface Activity { pending: number; failed: number; retryAt: number }
-interface TranslationContextValue extends Activity {
+export type TranslationView = TranslationMode | 'original'
+interface TranslationContextValue extends TranslationProgress {
   enabled: boolean
   target: TranslationLanguage
-  mode: TranslationMode
+  mode: TranslationView
+  paused: boolean
+  panelOpen: boolean
   attempt: number
   setEnabled: (enabled: boolean) => void
   setTarget: (target: TranslationLanguage) => void
-  setMode: (mode: TranslationMode) => void
+  setMode: (mode: TranslationView) => void
+  setPaused: (paused: boolean) => void
+  setPanelOpen: (open: boolean) => void
   retry: () => void
-  report: (id: string, activity: Activity | null) => void
+  report: (activity: TranslationProgress | null) => void
 }
 const TranslationContext = createContext<TranslationContextValue | null>(null)
 const PREFERENCE_KEY = 'orbit:translation:v1'
+const EMPTY: TranslationProgress = { total: 0, completed: 0, pending: 0, failed: 0, retryAt: 0 }
 
-export function TranslationProvider({ children }: { children: ReactNode }) {
-  const { locale } = useI18n()
+/** Mounted inside one README, so leaving it cancels work and resets activation. */
+export function TranslationProvider({ children, defaultTarget = 'zh' }: { children: ReactNode; defaultTarget?: TranslationLanguage }) {
   const [preferences] = useState(() => loadJSON<{ target?: unknown; mode?: unknown } | null>(PREFERENCE_KEY, {}))
   const [enabled, setEnabled] = useState(false)
-  const [target, setTarget] = useState<TranslationLanguage>(
-    isTranslationLanguage(preferences?.target) ? preferences.target : locale,
-  )
-  const [mode, setMode] = useState<TranslationMode>(preferences?.mode === 'translated' ? 'translated' : 'bilingual')
+  const [target, setTarget] = useState<TranslationLanguage>(isTranslationLanguage(preferences?.target) ? preferences.target : defaultTarget)
+  const [mode, setModeState] = useState<TranslationView>(preferences?.mode === 'translated' ? 'translated' : 'bilingual')
+  const [paused, setPaused] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [activity, setActivity] = useState<Record<string, Activity>>({})
-  useEffect(() => { saveJSON(PREFERENCE_KEY, { target, mode }) }, [target, mode])
-  const retry = useCallback(() => setAttempt((value) => value + 1), [])
-  const report = useCallback((id: string, next: Activity | null) => setActivity((current) => {
-    if (!next && !current[id]) return current
-    if (next && current[id]?.pending === next.pending && current[id]?.failed === next.failed && current[id]?.retryAt === next.retryAt) return current
-    const updated = { ...current }
-    if (next) updated[id] = next
-    else delete updated[id]
-    return updated
-  }), [])
+  const [activity, setActivity] = useState<TranslationProgress>(EMPTY)
+  // Original is a temporary reading view, not a preference for the next README.
+  const setMode = useCallback((next: TranslationView) => {
+    setModeState(next)
+  }, [])
+  useEffect(() => {
+    if (enabled && mode !== 'original') saveJSON(PREFERENCE_KEY, { target, mode })
+  }, [enabled, target, mode])
+  const retry = useCallback(() => { setPaused(false); setAttempt((value) => value + 1) }, [])
+  const report = useCallback((next: TranslationProgress | null) => setActivity(next ?? EMPTY), [])
   const value = useMemo<TranslationContextValue>(() => ({
-    enabled, target, mode, attempt, setEnabled, setTarget, setMode, retry, report,
-    pending: Object.values(activity).reduce((sum, entry) => sum + entry.pending, 0),
-    failed: Object.values(activity).reduce((sum, entry) => sum + entry.failed, 0),
-    retryAt: Math.max(0, ...Object.values(activity).map((entry) => entry.retryAt)),
-  }), [enabled, target, mode, attempt, retry, report, activity])
+    enabled, target, mode, paused, panelOpen, attempt, setEnabled, setTarget, setMode, setPaused, setPanelOpen, retry, report, ...activity,
+  }), [enabled, target, mode, paused, panelOpen, attempt, setMode, retry, report, activity])
   return <TranslationContext.Provider value={value}>{children}</TranslationContext.Provider>
 }
 

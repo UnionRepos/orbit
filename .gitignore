@@ -8,3 +8,5 @@ dist
 .wrangler
 .dev.vars
 .wrangler-dry-run
+tsconfig.tsbuildinfo
+tmp-*.mjs

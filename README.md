@@ -237,21 +237,28 @@ the page has already downloaded instead of fetching a second copy during install
 
 ## Immersive translation
 
-Use the **Immersive translation** toolbar above the feed or repository reader:
-choose a target language and either **Bilingual** or **Translation only**, then
-select **Translate content**. **Show original** cancels pending work and restores
-the source. Target language and display preferences are saved on this device;
-translation starts only after you enable it in the current session.
+Open a repository detail page and use **Translate** in the README header. Choose
+the target language next to the button. The controls stay with the reader as you
+scroll and offer **Original**, **Bilingual**, and **Translation only** views.
+Switching views keeps completed translations and does not repeat API requests.
 
-Repository descriptions and README prose are translated as they approach the
-viewport. Lists, tables, heading anchors, links, images, inline code and code
-blocks retain their structure. Reading-list notes and interface labels are not
-sent for translation. Interface language remains a separate setting.
+Only README prose is translated. Feeds, repository descriptions, profiles, saved
+notes, and interface labels remain outside the translation session. A new README
+starts in its original language; target and display preferences stay on this device.
+Leaving the detail page cancels its pending work.
+
+The reader prioritizes passages near your current position, then works through
+the rest of the document with a progress bar. **Pause** stops new work while
+letting in-flight passages finish; **Resume** continues where you left off.
+Original view also pauses new work. Failed passages retain their source and can
+be retried individually or together, without disturbing successful translations.
+Lists, tables, heading anchors, links, images, inline code and code blocks retain
+their structure. Incoming translations preserve the paragraph you are reading.
 
 Translations use Bilibili's [free Index-Translate public API](https://github.com/bilibili/Index-Translate),
 with `Index-Translate-35B-A3B` at
 `https://index-translate.bilibili.com/v1/chat/completions`. No API key or extra
-environment variables are required. Visible public text is sent to Bilibili
+environment variables are required. README prose is sent to Bilibili
 through Orbit's same-origin `POST /api/translate` endpoint; the browser never
 calls the provider directly. The integration works with the Node server and
 Cloudflare Worker.

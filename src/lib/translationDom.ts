@@ -86,3 +86,23 @@ export function removeTranslations(passages: TranslationPassage[]) {
 export function escapeTranslationText(text: string): string {
   return text.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 }
+
+/** Preserve the paragraph under the sticky reader header when content changes above it. */
+export function preserveReadingPosition(root: HTMLElement, mutate: () => void) {
+  const topbar = document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0
+  const readerHead = root.closest('.readme-card')?.querySelector('.readme-chrome')?.getBoundingClientRect().bottom ?? 0
+  const offset = Math.max(topbar, readerHead) + 8
+  const bounds = root.getBoundingClientRect()
+  const anchor = root.isConnected && bounds.top < offset && bounds.bottom > offset
+    ? Array.from(root.querySelectorAll<HTMLElement>(BLOCKS)).find((node) => {
+      const rect = node.getBoundingClientRect()
+      return rect.bottom > offset && rect.top < window.innerHeight
+    })
+    : undefined
+  const before = anchor?.getBoundingClientRect().top
+  mutate()
+  if (anchor?.isConnected && before !== undefined) {
+    const movement = anchor.getBoundingClientRect().top - before
+    if (Math.abs(movement) > 0.5) window.scrollBy({ top: movement, behavior: 'instant' })
+  }
+}

@@ -1,8 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from 'react'
 import { WifiOff } from 'lucide-react'
 import { OrbitProvider, useOrbit } from './context/OrbitContext.tsx'
-import { TranslationProvider } from './context/TranslationContext.tsx'
-import { TranslationToolbar } from './components/TranslationToolbar.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FeedPage } from './components/FeedPage.tsx'
 import { Toasts } from './components/Toasts.tsx'
@@ -121,7 +119,6 @@ function AppShell() {
       )}
       <TopBar route={route} />
       <div className="page" id="main-content" tabIndex={-1}>
-        {route.name !== 'about' && <TranslationToolbar />}
         <Suspense fallback={<RouteFallback />}>{page}</Suspense>
       </div>
       <Suspense fallback={null}>
@@ -168,9 +165,7 @@ export default function App() {
     <I18nProvider>
       <ErrorBoundary>
         <OrbitProvider>
-          <TranslationProvider>
-            <AppShell />
-          </TranslationProvider>
+          <AppShell />
         </OrbitProvider>
       </ErrorBoundary>
     </I18nProvider>

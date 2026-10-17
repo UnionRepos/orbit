@@ -9,10 +9,7 @@ import {
   Check,
   Clock3,
   Code2,
-  Copy,
-  ExternalLink,
   Eye,
-  FileText,
   GitFork,
   Globe,
   ListTree,
@@ -44,10 +41,10 @@ import { cacheRepo, cachedRepo } from '../lib/repoCache.ts'
 import { getLastFeedPath, navigate, repoPath, userPath, type Route } from '../lib/router.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
-import { ImmersiveContent, TranslatedText } from './ImmersiveContent.tsx'
+import { ReadmeReader } from './ReadmeReader.tsx'
 import { RepoCard } from './RepoCard.tsx'
 import { EmptyState } from './EmptyState.tsx'
-import { DetailSkeleton, ReadmeSkeleton } from './Skeletons.tsx'
+import { DetailSkeleton } from './Skeletons.tsx'
 import { GithubIcon } from './icons.tsx'
 
 export function RepoDetailPage({ route }: { route: Route }) {
@@ -285,9 +282,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
           </div>
         </div>
 
-        {repo.description ? <TranslatedText text={repo.description} className="hero-description" /> : (
-          <p className="hero-description">{t('detail.descriptionMissing')}</p>
-        )}
+        <p className="hero-description">{repo.description || t('detail.descriptionMissing')}</p>
 
         {repo.topics.length > 0 && (
           <div className="hero-topics">
@@ -362,61 +357,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
 
       <div className="detail-body">
         <div className="readme-column">
-          <section className="readme-card">
-            <header className="readme-head">
-              <span className="readme-file">
-                <FileText size={15} />
-                {readme?.path ?? t('detail.readme')}
-              </span>
-              {readme && (
-                <span className="readme-size">
-                  {t('detail.words', { count: compactNumber(readme.markdown.split(/\s+/).length) })}
-                </span>
-              )}
-              <div className="readme-actions">
-                {readme && (
-                  <button
-                    className="icon-btn"
-                    title={t('detail.copyRaw')}
-                    onClick={async () => {
-                      const ok = await copyText(readme.markdown)
-                      toast(ok ? t('detail.rawCopied') : t('detail.copyFailed'), ok ? 'success' : 'error')
-                    }}
-                  >
-                    <Copy size={14} />
-                  </button>
-                )}
-                <a
-                  className="icon-btn"
-                  href={readme?.htmlUrl ?? `${repo.htmlUrl}#readme`}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={t('detail.viewReadme')}
-                >
-                  <ExternalLink size={14} />
-                </a>
-              </div>
-            </header>
-
-            {readmeLoading && <ReadmeSkeleton />}
-
-            {!readmeLoading && readmeError && (
-              <div className="readme-error">
-                <FileText size={20} />
-                <div>
-                  <strong>{t('detail.readmeUnavailable')}</strong>
-                  <p>{readmeError}</p>
-                </div>
-                <a className="btn" href={`${repo.htmlUrl}#readme`} target="_blank" rel="noreferrer">
-                  {t('detail.readOnGithub')} <ArrowUpRight size={13} />
-                </a>
-              </div>
-            )}
-
-            {!readmeLoading && rendered && (
-              <ImmersiveContent className="markdown-body" html={rendered.html} onClick={onMarkdownClick} />
-            )}
-          </section>
+          <ReadmeReader key={fullName} readme={readme} rendered={rendered} loading={readmeLoading} error={readmeError} repoHtmlUrl={repo.htmlUrl} onClick={onMarkdownClick} />
 
           {similar.length > 0 && (
             <section className="similar-section">

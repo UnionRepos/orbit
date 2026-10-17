@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import type { RepoSummary } from '../../shared/types.ts'
 import { languageColor } from '../../shared/languages.ts'
-import { TranslatedText } from './ImmersiveContent.tsx'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
 import { compactNumber, fullNumber, relativeTime, starVelocity } from '../lib/format.ts'
@@ -102,7 +101,7 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
         </header>
 
         {repo.description ? (
-          <TranslatedText text={repo.description} className="card-description" />
+          <p className="card-description">{repo.description}</p>
         ) : (
           <p className="card-description muted-italic">{t('card.noDescription')}</p>
         )}

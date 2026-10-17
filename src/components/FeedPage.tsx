@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ArrowUpDown,
-  ChevronDown,
   Filter,
   Info,
   RefreshCw,
@@ -23,6 +22,7 @@ import { compactNumber, fullNumber, relativeTime, timeUntil } from '../lib/forma
 import { feedPath, navigate, repoPath, type Route } from '../lib/router.ts'
 import { routeScrollKey } from '../lib/scrollMemory.ts'
 import { EmptyState } from './EmptyState.tsx'
+import { Dropdown } from './Dropdown.tsx'
 import { FeedAside } from './FeedAside.tsx'
 import { ChannelIcon, FilterPanel } from './FilterPanel.tsx'
 import { RepoCard } from './RepoCard.tsx'
@@ -39,6 +39,10 @@ export function FeedPage({ route }: { route: Route }) {
   const sheetRef = useDialogFocus<HTMLDivElement>(sheetOpen)
   const meta = feed.meta
   const scrollKey = useMemo(() => routeScrollKey(route), [route])
+  const sortOptions = useMemo(
+    () => SORT_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
+    [t],
+  )
 
   // Keep the discovery list scrolled where the user left it when they come
   // back from a project page. Only the first page is fetched on mount, so the
@@ -225,23 +229,14 @@ export function FeedPage({ route }: { route: Route }) {
           </div>
 
           <div className="feed-toolbar-right">
-            <label className="sort-select">
-              <ArrowUpDown size={13} />
-              <select
-                value={params.sort}
-                onChange={(event) =>
-                  apply({ sort: event.target.value === 'best' ? null : event.target.value })
-                }
-                aria-label={t('feed.sortAria')}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option value={option.value} key={option.value}>
-                    {t(option.labelKey)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={12} />
-            </label>
+            <Dropdown
+              className="sort-select"
+              label={t('feed.sortAria')}
+              leading={<ArrowUpDown size={13} />}
+              value={params.sort}
+              options={sortOptions}
+              onChange={(sort) => apply({ sort: sort === 'best' ? null : sort })}
+            />
             <button
               className="toolbar-btn icon-only"
               onClick={feed.refresh}

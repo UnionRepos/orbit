@@ -5244,44 +5244,89 @@ body.sheet-open {
   .repo-external { width: 22px; }
 }
 
-/* Opt-in translation remains separate from the interface language switcher. */
-.translation-toolbar {
-  margin: -12px 0 30px;
-  padding: 12px 0 14px;
-  border-bottom: 1px solid var(--border);
-}
-.translation-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.translation-label { display: inline-flex; align-items: center; gap: 7px; margin-right: auto; color: var(--text-2); font-size: 12px; font-weight: 500; }
-.translation-label svg { color: var(--accent); }
-.translation-select select { max-width: 165px; min-height: 34px; padding: 5px 25px 5px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text-2); font-size: 12px; cursor: pointer; }
-.translation-toggle { height: 34px; font-size: 12px; }
-.translation-toolbar.is-enabled .translation-toggle { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.translation-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px 20px; margin-top: 9px; color: var(--muted); font-size: 10px; line-height: 1.6; }
+/* The README owns its translation controls and reading session. */
+.readme-card { overflow: visible; overflow-anchor: none; }
+.readme-chrome { position: sticky; top: var(--reader-top-offset, var(--topbar-height)); z-index: 12; border-radius: 7px 7px 0 0; background: var(--panel-solid); box-shadow: 0 1px 0 var(--border); }
+.readme-head { min-height: 54px; border-radius: 7px 7px 0 0; background: var(--panel-solid); }
+.readme-file { min-width: 0; overflow-wrap: anywhere; }
+.readme-actions { align-items: center; gap: 6px; flex-shrink: 0; }
+.readme-translate-action { display: inline-flex; align-items: center; gap: 6px; padding-right: 7px; border-right: 1px solid var(--border); }
+.readme-translate-button { height: 32px; gap: 6px; font-size: 11px; padding: 0 9px; border-color: var(--border-strong); background: var(--panel-solid); }
+.readme-translate-button.is-active { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.readme-translation-panel { padding: 12px 15px; border-bottom: 1px solid var(--border); }
+.readme-translation-panel[hidden] { display: none; }
+.readme-translation-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+.translation-views { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+.translation-views button { min-height: 28px; padding: 4px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 11px; }
+.translation-views button[aria-pressed='true'] { color: var(--text); background: var(--panel-solid); box-shadow: 0 1px 3px #0000000f; }
+.translation-session-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.translation-pause, .translation-retry { display: inline-flex; align-items: center; gap: 5px; padding: 4px 0; border: 0; background: none; color: var(--accent); font-size: 11px; }
+.translation-retry:disabled { color: var(--muted); cursor: wait; }
+.translation-pause:hover, .translation-retry:hover, .translation-inline-retry:hover { text-decoration: underline; text-underline-offset: 3px; }
+.translation-progress-copy { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin: 12px 0 7px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.translation-progress-copy > span:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.translation-progress-copy svg { color: var(--accent); flex-shrink: 0; }
+.translation-percent { font-family: var(--font-mono); font-size: 10px; flex-shrink: 0; }
+.translation-failure-count { color: var(--danger); }
+.translation-failure-count::before { content: '·'; margin-right: 5px; }
+.translation-progress-track { height: 3px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.translation-progress-track > span { display: block; height: 100%; background: var(--accent); transition: width 180ms ease; }
+.translation-caption { margin: 9px 0 0; color: var(--muted); font-size: 9px; line-height: 1.6; }
 .translation-caption a { text-underline-offset: 3px; text-decoration-color: var(--border-strong); }
-.translation-status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.translation-retry { display: inline-flex; align-items: center; gap: 4px; padding: 0 3px; border: 0; background: none; color: var(--accent); font-size: inherit; text-decoration: underline; text-underline-offset: 3px; }
-.translation-retry:disabled { color: var(--muted); cursor: wait; text-decoration: none; }
 .translation-original { display: block; }
-.translation-result:not([hidden]) { display: block; margin-top: 7px; padding-left: 12px; border-left: 2px solid var(--border-strong); color: var(--accent); font-family: var(--font-sans); font-size: 0.94em; font-weight: 400; line-height: 1.8; letter-spacing: normal; overflow-wrap: anywhere; }
-.translation-pending { opacity: 0.65; }
-.translation-mode-translated .translation-original.has-translation { display: none; }
-.translation-mode-translated .translation-result { margin-top: 0; padding-left: 0; border-left: 0; color: inherit; font-size: inherit; font-weight: inherit; }
-.translation-mode-bilingual .translation-result img { display: none; }
-.immersive-content h1 .translation-result, .immersive-content h2 .translation-result, .immersive-content h3 .translation-result { font-size: 0.65em; }
-.immersive-content :is(li, td, th, dt, dd) > .translation-result { margin-bottom: 5px; }
-.card-description.immersive-content { display: block; overflow: visible; }
-.card-description .translation-original, .card-description .translation-result:not([hidden]) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.card-description.translation-mode-translated .translation-original.has-translation { display: none; }
-.markdown-body .translation-result a { color: inherit; }
+.translation-result:not([hidden]) { display: block; margin-top: 9px; padding-left: 14px; border-left: 2px solid var(--accent-soft); color: var(--text); font: inherit; line-height: 1.8; overflow-wrap: anywhere; }
+[data-translation-view='bilingual'] .translation-original.has-translation { color: var(--muted); }
+[data-translation-view='translated'] .translation-original.has-translation { display: none; }
+[data-translation-view='translated'] .translation-result:not([hidden]):not(.translation-feedback) { margin-top: 0; padding-left: 0; border: 0; }
+[data-translation-view='original'] .translation-result { display: none; }
+[data-translation-view='bilingual'] .translation-result img { display: none; }
+.immersive-content :is(h1,h2,h3,h4,h5,h6) .translation-result { font-size: 0.85em; }
+.immersive-content[data-translation-view='translated'] :is(h1,h2,h3,h4,h5,h6) .translation-result { font-size: inherit; }
+.immersive-content .translation-result.translation-feedback { display: block; margin-top: 7px; padding-left: 0; border: 0; color: var(--muted); font-family: var(--font-sans); font-size: 11px; font-weight: 400; line-height: 1.6; }
+.immersive-content[data-translation-view='original'] .translation-result { display: none; }
+.translation-feedback.is-loading::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-right: 6px; }
+.translation-feedback.is-error { color: var(--muted); }
+.translation-inline-retry { padding: 2px 4px; border: 0; border-radius: 3px; background: transparent; color: var(--accent); font: inherit; }
+.markdown-body .translation-result a { color: var(--accent); }
+.markdown-body :is(h1,h2,h3,h4,h5,h6) { scroll-margin-top: calc(var(--reader-top-offset, var(--topbar-height)) + 210px); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* Shared custom language/sort menus render outside the sticky reader. */
+.dropdown { position: relative; display: inline-flex; min-width: 0; }
+.dropdown-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; min-width: 0; padding: 6px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel-solid); color: var(--text-2); font-size: 11px; white-space: nowrap; }
+.dropdown-trigger:hover, .dropdown.is-open .dropdown-trigger { border-color: var(--border-strong); color: var(--text); }
+.dropdown-trigger:disabled { opacity: 0.5; cursor: default; }
+.dropdown-value { overflow: hidden; text-overflow: ellipsis; }
+.dropdown-caret { flex-shrink: 0; color: var(--muted); }
+.dropdown-menu { position: fixed; z-index: 150; overflow-y: auto; padding: 5px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel-solid); color: var(--text); box-shadow: var(--shadow); outline: none; }
+.dropdown-option { display: flex; align-items: center; gap: 10px; min-height: 35px; padding: 7px 9px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.dropdown-option.is-active { background: var(--panel-hover); }
+.dropdown-option[aria-selected='true'] { color: var(--accent); }
+.dropdown-option[aria-disabled='true'] { opacity: 0.45; cursor: default; }
+.dropdown-option-label { flex: 1; }
+.dropdown-check { visibility: hidden; flex-shrink: 0; }
+.dropdown-option[aria-selected='true'] .dropdown-check { visibility: visible; }
+.translation-select { max-width: 126px; border-color: transparent; background: transparent; }
+
 @media (max-width: 760px) {
-  .translation-toolbar { margin: -7px 0 24px; padding-top: 0; }
-  .translation-controls { gap: 7px; }
-  .translation-label { flex-basis: 100%; margin-bottom: 3px; }
-  .translation-select { flex: 1; min-width: 0; }
-  .translation-select select { width: 100%; max-width: none; min-height: 38px; padding-right: 10px; font-size: 11px; }
-  .translation-toggle { height: 38px; padding: 0 10px; font-size: 11px; }
-  .translation-caption { font-size: 10px; }
+  .readme-head { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
+  .readme-file { font-size: 10px; }
+  .readme-actions { margin-left: auto; gap: 4px; }
+  .readme-translate-action { gap: 3px; padding-right: 5px; }
+  .readme-translate-button { height: 34px; padding: 0 7px; font-size: 11px; }
+  .translation-select { max-width: 100px; padding-right: 3px; padding-left: 4px; gap: 3px; }
+  .readme-translation-panel { padding: 11px 12px; }
+  .readme-translation-settings { gap: 8px; }
+  .translation-views button { min-height: 32px; padding: 4px 8px; font-size: 10px; }
+  .translation-session-actions { gap: 10px; }
+  .translation-caption { font-size: 9px; }
+  .readme-actions .icon-btn { width: 28px; }
+}
+@media (max-width: 420px) {
+  .readme-file { flex-basis: 100%; }
+  .readme-actions { width: 100%; justify-content: flex-end; }
+  .readme-translate-action { margin-right: auto; border: 0; }
+  .translation-select { max-width: 125px; }
 }
 @media (min-width: 761px) and (max-width: 1000px) {
   :root { --topbar-height: 114px; }

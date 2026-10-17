@@ -302,7 +302,10 @@ when the app itself runs on Node. Do not point the Worker back at Orbit's own UR
 
 After deployment run `node scripts/smoke-translation.ts` against the live service.
 This checks an actual translation, rather than treating `/api/health` success as
-proof that the external provider works.
+proof that the external provider works. The Deploy workflow runs the same probe,
+but keeps it non-blocking until the relay is configured: set the repository
+variable `TRANSLATION_SMOKE=enabled` (Settings → Secrets and variables → Actions →
+Variables) to make a provider failure fail the release.
 
 The streaming endpoint `POST /api/translate/readme` accepts up to 1,200 uniquely
 indexed passages and 250,000 total characters, in a body limited to 1 MB. It emits

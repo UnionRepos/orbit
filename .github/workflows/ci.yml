@@ -22,12 +22,13 @@ jobs:
   verify:
     name: Typecheck, test & build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -46,10 +47,3 @@ jobs:
 
       - name: Validate the Worker bundle
         run: npx wrangler deploy --dry-run --outdir=.wrangler-dry-run
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist
-          retention-days: 7

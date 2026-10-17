@@ -16,20 +16,24 @@ permissions:
 
 env:
   NODE_VERSION: '24'
+  PRODUCTION_URL: https://orbit.openhub.today
 
 jobs:
   deploy:
     name: Deploy to Cloudflare Workers
     runs-on: ubuntu-latest
+    # A manual dispatch can pick any ref; only ever ship main.
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 20
     environment:
       name: production
       url: https://orbit.openhub.today
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -47,7 +51,7 @@ jobs:
         run: npm run build
 
       - name: Deploy
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -57,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5; do
-            if curl -fsS --max-time 20 https://orbit.openhub.today/api/health | tee /tmp/health.json | grep -q '"ok":true'; then
+            if curl -fsS --max-time 20 "${PRODUCTION_URL}/api/health" | tee /tmp/health.json | grep -q '"ok":true'; then
               echo "Health check passed: $(cat /tmp/health.json)"
               exit 0
             fi

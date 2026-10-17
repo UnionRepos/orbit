@@ -5,6 +5,19 @@ import type { en } from './en.ts'
  * so missing or misspelled keys fail the typecheck.
  */
 export const zh: Record<keyof typeof en, string> = {
+  'translation.title': "沉浸式翻译",
+  'translation.target': "翻译目标语言",
+  'translation.display': "译文显示方式",
+  'translation.bilingual': "双语对照",
+  'translation.translated': "仅看译文",
+  'translation.original': "显示原文",
+  'translation.start': "翻译内容",
+  'translation.privacy': "当前可见的公开内容由以下服务翻译：",
+  'translation.pending': "正在翻译 {count} 段内容…",
+  'translation.failed': "部分内容翻译失败，仍可阅读原文。",
+  'translation.wait': "{seconds} 秒后重试",
+  'translation.ready': "随阅读翻译，代码保持原样。",
+
   // ---------------------------------------------------------------- app shell
   'app.title.feed': 'Orbit — 开源，正在发生',
   'app.title.saved': '阅读清单 · Orbit',

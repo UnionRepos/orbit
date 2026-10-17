@@ -44,6 +44,7 @@ import { cacheRepo, cachedRepo } from '../lib/repoCache.ts'
 import { getLastFeedPath, navigate, repoPath, userPath, type Route } from '../lib/router.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
+import { ImmersiveContent, TranslatedText } from './ImmersiveContent.tsx'
 import { RepoCard } from './RepoCard.tsx'
 import { EmptyState } from './EmptyState.tsx'
 import { DetailSkeleton, ReadmeSkeleton } from './Skeletons.tsx'
@@ -284,9 +285,9 @@ export function RepoDetailPage({ route }: { route: Route }) {
           </div>
         </div>
 
-        <p className="hero-description">
-          {repo.description || t('detail.descriptionMissing')}
-        </p>
+        {repo.description ? <TranslatedText text={repo.description} className="hero-description" /> : (
+          <p className="hero-description">{t('detail.descriptionMissing')}</p>
+        )}
 
         {repo.topics.length > 0 && (
           <div className="hero-topics">
@@ -413,12 +414,7 @@ export function RepoDetailPage({ route }: { route: Route }) {
             )}
 
             {!readmeLoading && rendered && (
-              <div
-                className="markdown-body"
-                onClick={onMarkdownClick}
-                // markdown-it is configured with html:false, so raw HTML is never passed through.
-                dangerouslySetInnerHTML={{ __html: rendered.html }}
-              />
+              <ImmersiveContent className="markdown-body" html={rendered.html} onClick={onMarkdownClick} />
             )}
           </section>
 

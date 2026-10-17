@@ -234,3 +234,60 @@ the page has already downloaded instead of fetching a second copy during install
 ## License
 
 [MIT](LICENSE) © [lemonhub-io](https://github.com/lemonhub-io)
+
+## Immersive translation
+
+Use the **Immersive translation** toolbar above the feed or repository reader:
+choose a target language and either **Bilingual** or **Translation only**, then
+select **Translate content**. **Show original** cancels pending work and restores
+the source. Target language and display preferences are saved on this device;
+translation starts only after you enable it in the current session.
+
+Repository descriptions and README prose are translated as they approach the
+viewport. Lists, tables, heading anchors, links, images, inline code and code
+blocks retain their structure. Reading-list notes and interface labels are not
+sent for translation. Interface language remains a separate setting.
+
+Translations use Bilibili's [free Index-Translate public API](https://github.com/bilibili/Index-Translate),
+with `Index-Translate-35B-A3B` at
+`https://index-translate.bilibili.com/v1/chat/completions`. No API key or extra
+environment variables are required. Visible public text is sent to Bilibili
+through Orbit's same-origin `POST /api/translate` endpoint; the browser never
+calls the provider directly. The integration works with the Node server and
+Cloudflare Worker.
+
+The proxy validates and bounds requests (six passages, 2,400 characters per
+passage, 6,000 total), limits concurrency and request rate, times out stalled
+requests, and retains a bounded in-memory cache for up to 24 hours. The browser
+also caches recent translations in memory. Provider failures preserve the
+original text and expose a retry control, including a countdown when rate
+limited. Translations are machine-generated and depend on public-service
+availability.
+
+Long documents are processed as ordered pieces, never as a single model prompt.
+Both browser and proxy use sentence/word boundaries with a 1,200-character and
+1,800-byte UTF-8 chunk ceiling. The proxy packs pieces under conservative output
+expansion and context estimates, reserves context overhead, and requests at most
+4,096 output tokens within the public endpoint's 16,384-token context window.
+The HTTP envelope limits above are independent of the smaller upstream batches.
+
+A `finish_reason: stop` response still has to pass per-passage checks: complete
+JSON keys, preserved code/link placeholders, script-aware compression/expansion,
+repetition relative to the source, and token-usage limits when reported. Suspect
+results are retried in smaller groups or pieces, up to three split levels and
+24 upstream calls within one shared 45-second deadline. Rate limits and transport
+errors are surfaced immediately. Nothing from an unsuccessful HTTP batch is
+committed to the translation cache; the original remains available. These checks
+are conservative heuristics, not a guarantee of semantic translation accuracy.
+
+Example request:
+
+```http
+POST /api/translate
+Content-Type: application/json
+
+{"target":"zh","texts":["An open-source documentation tool."]}
+```
+
+Supported target languages: Simplified Chinese, English, Japanese, Korean,
+French, German, Spanish and Russian.

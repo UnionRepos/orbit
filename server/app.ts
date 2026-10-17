@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { createTranslationRoutes } from './translation.ts'
 import { cors } from 'hono/cors'
 import type {
   ChannelId,
@@ -44,6 +45,8 @@ app.use('/api/*', cors({ origin: '*', allowMethods: ['GET', 'OPTIONS'] }))
 // Serve repeat reads from the Cloudflare edge cache, so a freshly started
 // isolate answers in a few milliseconds instead of waiting on GitHub again.
 app.use('/api/*', edgeCache())
+
+app.route('/api/translate', createTranslationRoutes())
 
 function parseFeedQuery(url: URL): FeedQuery {
   const qp = url.searchParams

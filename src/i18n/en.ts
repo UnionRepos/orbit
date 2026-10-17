@@ -6,6 +6,19 @@
  * plurals are written as `singular|plural` and read with `translatePlural()`.
  */
 export const en = {
+  'translation.title': "Immersive translation",
+  'translation.target': "Translation language",
+  'translation.display': "Translation display",
+  'translation.bilingual': "Bilingual",
+  'translation.translated': "Translation only",
+  'translation.original': "Show original",
+  'translation.start': "Translate content",
+  'translation.privacy': "Visible public text is translated by",
+  'translation.pending': "Translating {count} passages…",
+  'translation.failed': "Some passages could not be translated. Originals are available.",
+  'translation.wait': "Retry in {seconds}s",
+  'translation.ready': "Translates as you read. Code stays unchanged.",
+
   // ---------------------------------------------------------------- app shell
   'app.title.feed': 'Orbit — open source, in motion',
   'app.title.saved': 'Reading list · Orbit',

@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "worker:dev": "wrangler dev",
-    "seed": "node scripts/build-seed.ts"
+    "seed": "node scripts/build-seed.ts",
+    "icons": "node scripts/build-icons.ts"
   },
   "keywords": [
     "github",

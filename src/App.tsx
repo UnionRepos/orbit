@@ -1,5 +1,6 @@
 import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from 'react'
-import { OrbitProvider } from './context/OrbitContext.tsx'
+import { WifiOff } from 'lucide-react'
+import { OrbitProvider, useOrbit } from './context/OrbitContext.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FeedPage } from './components/FeedPage.tsx'
 import { RepoDetailPage } from './components/RepoDetailPage.tsx'
@@ -11,6 +12,7 @@ import { Toasts } from './components/Toasts.tsx'
 import { I18nProvider, t, useI18n } from './i18n/index.ts'
 import { parseRoute, rememberFeedPath, type Route } from './lib/router.ts'
 import { recallScroll, routeScrollKey } from './lib/scrollMemory.ts'
+import { useOnlineStatus, useServiceWorkerUpdate } from './hooks/usePwa.ts'
 
 function useRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseRoute())
@@ -33,7 +35,18 @@ function useRoute(): Route {
 function AppShell() {
   const route = useRoute()
   const { locale, t } = useI18n()
+  const { toast } = useOrbit()
+  const online = useOnlineStatus()
+  const { updateReady, reload } = useServiceWorkerUpdate()
   const scrollKey = routeScrollKey(route)
+
+  // Offer a one-click reload once a newer build is installed in the background.
+  useEffect(() => {
+    if (!updateReady) return
+    toast(t('pwa.updateReady'), 'info', { label: t('pwa.reload'), run: reload })
+    // The toast is raised once per waiting worker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateReady])
 
   // Reset the scroll only when the destination has no offset to restore; the
   // feed restores its own offset once the list has rendered again.
@@ -77,6 +90,11 @@ function AppShell() {
   return (
     <>
       <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus() }}>{t('app.skip')}</a>
+      {!online && (
+        <div className="offline-banner" role="status">
+          <WifiOff size={14} aria-hidden="true" /> {t('pwa.offline')}
+        </div>
+      )}
       <TopBar route={route} />
       <div className="page" id="main-content" tabIndex={-1}>{page}</div>
       <CommandPalette />

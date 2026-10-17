@@ -31,6 +31,8 @@ channels, momentum scoring, readable READMEs, and a local reading list.
   saved work, with full keyboard navigation.
 - **Resilient by design** — conditional requests, in-flight deduplication, memory + disk cache,
   stale-while-error responses, and a 229-project curated seed snapshot for offline use.
+- **Installable PWA** — a web app manifest, generated maskable icons, an install button, and a
+  service worker that precaches the app shell and falls back to cached API reads when offline.
 - **Dark + light themes**, responsive from desktop to phone, and a mobile filter sheet.
 
 ## Quick start
@@ -75,6 +77,7 @@ the browser. Orbit reports the live quota in the sidebar and on the About page.
 | `npm test` | Run the server and client test suites (`node --test`) |
 | `npm run typecheck` | Type-check only |
 | `npm run seed` | Regenerate the curated fallback snapshot |
+| `npm run icons` | Re-render the favicon and PWA icons from the Lucide glyph |
 
 ## Architecture
 
@@ -135,6 +138,25 @@ Orbit ships in English and Simplified Chinese (`zh`).
   `lang` attribute and CJK font stack are correct immediately.
 - Add a language by creating `src/i18n/pt.ts`, registering it in `LOCALES`, and
   adding it to `DICTIONARIES` — the typechecker lists anything still missing.
+
+## Progressive web app
+
+Orbit installs as a standalone app. `public/manifest.webmanifest` defines the name, colours,
+shortcuts (Trending, Rising, Reading list) and icons; the favicon and every icon are rendered from
+Lucide's [`orbit`](https://lucide.dev/icons/orbit) glyph by `npm run icons`, so the brand mark is a
+library icon rather than hand-drawn art. The generated files in `public/` are committed, so a normal
+build needs no image tooling.
+
+`public/sw.js` is the service worker. It precaches the shell plus every hashed asset for the current
+build (the file list and build id are injected into `dist/sw.js` by `scripts/vite-plugin-pwa.ts`),
+serves `/assets/*` cache-first, revalidates other same-origin files in the background, and answers
+`/api/*` reads network-first with the last good response as the offline fallback. Navigations that
+miss the network open the cached shell, so any route keeps working offline.
+
+The worker is registered in production builds only (`src/hooks/usePwa.ts`). When a new build is
+waiting, the app shows a toast with a reload action; the top bar exposes the install prompt once the
+browser offers one, and an offline banner appears when `navigator.onLine` flips. `public/_headers`
+keeps `/sw.js` revalidated while letting icons and bundles cache forever.
 
 ## Deploy to Cloudflare Workers
 

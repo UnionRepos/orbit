@@ -39,6 +39,14 @@ export const zh: Record<keyof typeof en, string> = {
   'topbar.about': '关于 Orbit',
   'topbar.languageAria': '切换语言',
 
+  // --------------------------------------------------------------------- pwa
+  'pwa.install': '安装 Orbit',
+  'pwa.installAria': '将 Orbit 安装到当前设备',
+  'pwa.installed': 'Orbit 已安装 — 可以从主屏幕或程序坞打开。',
+  'pwa.updateReady': 'Orbit 有新版本可用。',
+  'pwa.reload': '重新加载',
+  'pwa.offline': '当前处于离线状态 — 正在显示上次保存的内容。',
+
   // ---------------------------------------------------------------- channels
   'channel.trending.label': '热门',
   'channel.trending.short': '热门',

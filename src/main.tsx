@@ -4,9 +4,13 @@ import '@fontsource-variable/inter'
 import '@fontsource-variable/jetbrains-mono'
 import './styles.css'
 import App from './App.tsx'
+import { captureInstallPrompt } from './hooks/usePwa.ts'
 
 // The app restores list offsets itself; native restoration would fight it.
 if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
+
+// Listen before React mounts so an early install prompt is not missed.
+captureInstallPrompt()
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Root element not found')

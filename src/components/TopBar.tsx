@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Command,
+  Download,
   Info,
   Languages,
   Moon,
@@ -10,11 +11,13 @@ import {
 } from 'lucide-react'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { localeMeta, useI18n } from '../i18n/index.ts'
+import { useInstallPrompt } from '../hooks/usePwa.ts'
 import { feedPath, navigate, type Route } from '../lib/router.ts'
 
 export function TopBar({ route }: { route: Route }) {
-  const { saved, openPalette, theme, toggleTheme } = useOrbit()
+  const { saved, openPalette, theme, toggleTheme, toast } = useOrbit()
   const { t, toggleLocale, nextLocale } = useI18n()
+  const { canInstall, promptInstall } = useInstallPrompt()
   const [value, setValue] = useState(route.name === 'feed' ? route.query.get('q') ?? '' : '')
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -109,6 +112,20 @@ export function TopBar({ route }: { route: Route }) {
         </form>
 
         <div className="topbar-actions">
+          {canInstall && (
+            <button
+              className="icon-btn install-btn"
+              onClick={async () => {
+                const outcome = await promptInstall()
+                if (outcome === 'accepted') toast(t('pwa.installed'), 'success')
+              }}
+              title={t('pwa.installAria')}
+              aria-label={t('pwa.installAria')}
+            >
+              <Download size={18} />
+            </button>
+          )}
+
           <button
             className="icon-btn lang-btn"
             onClick={toggleLocale}

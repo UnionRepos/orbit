@@ -20,6 +20,17 @@ export function Toasts() {
             )}
           </span>
           <span className="toast-message">{toast.message}</span>
+          {toast.action && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                dismissToast(toast.id)
+                toast.action?.run()
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button onClick={() => dismissToast(toast.id)} aria-label={t('common.dismiss')}>
             <X size={14} />
           </button>

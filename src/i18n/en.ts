@@ -40,6 +40,14 @@ export const en = {
   'topbar.about': 'About Orbit',
   'topbar.languageAria': 'Change language',
 
+  // --------------------------------------------------------------------- pwa
+  'pwa.install': 'Install Orbit',
+  'pwa.installAria': 'Install Orbit on this device',
+  'pwa.installed': 'Orbit is installed — open it from your home screen or dock.',
+  'pwa.updateReady': 'An updated version of Orbit is ready.',
+  'pwa.reload': 'Reload',
+  'pwa.offline': 'You are offline — showing the last saved view.',
+
   // ---------------------------------------------------------------- channels
   'channel.trending.label': 'Trending',
   'channel.trending.short': 'Trending',

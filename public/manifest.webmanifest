@@ -1,0 +1,72 @@
+{
+  "id": "/",
+  "name": "Orbit — open source, in motion",
+  "short_name": "Orbit",
+  "description": "Orbit is an independent directory for discovering open-source projects: trending, rising, fresh and hidden gems, filtered the way you browse.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#191b19",
+  "theme_color": "#191b19",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["developer", "productivity", "news"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Trending",
+      "short_name": "Trending",
+      "description": "The most starred projects right now",
+      "url": "/#/?channel=trending",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Rising",
+      "short_name": "Rising",
+      "description": "Projects gaining momentum fastest",
+      "url": "/#/?channel=rising",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Reading list",
+      "short_name": "Saved",
+      "description": "Everything you bookmarked",
+      "url": "/#/saved",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

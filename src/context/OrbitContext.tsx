@@ -26,10 +26,16 @@ export interface RecentEntry {
   viewedAt: number
 }
 
+export interface ToastAction {
+  label: string
+  run: () => void
+}
+
 export interface Toast {
   id: number
   message: string
   kind: 'info' | 'success' | 'error'
+  action?: ToastAction
 }
 
 interface OrbitContextValue {
@@ -48,7 +54,7 @@ interface OrbitContextValue {
   openPalette: () => void
   closePalette: () => void
   toasts: Toast[]
-  toast: (message: string, kind?: Toast['kind']) => void
+  toast: (message: string, kind?: Toast['kind'], action?: ToastAction) => void
   dismissToast: (id: number) => void
   health: HealthResponse | null
   refreshHealth: () => void
@@ -127,13 +133,13 @@ export function OrbitProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const toast = useCallback(
-    (message: string, kind: Toast['kind'] = 'info') => {
+    (message: string, kind: Toast['kind'] = 'info', action?: ToastAction) => {
       const id = Date.now() + Math.random()
-      setToasts((current) => [...current.slice(-2), { id, message, kind }])
+      setToasts((current) => [...current.slice(-2), { id, message, kind, action }])
       const timer = window.setTimeout(() => {
         setToasts((current) => current.filter((item) => item.id !== id))
         timers.current.delete(id)
-      }, 3600)
+      }, action ? 8000 : 3600)
       timers.current.set(id, timer)
     },
     [],

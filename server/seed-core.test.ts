@@ -93,6 +93,20 @@ describe('lazy seed loading', () => {
     const index = await getSeed()
     assert.equal(index.items.length, 0)
   })
+
+  it('retries a failed load instead of caching the failure', async () => {
+    let calls = 0
+    setSeedProvider(async () => {
+      calls += 1
+      if (calls === 1) throw new Error('assets unavailable')
+      return snapshot
+    })
+
+    const failed = await getSeed()
+    assert.equal(failed.items.length, 0)
+    assert.equal((await getSeed()).items.length, 0, 'held off during the cooldown')
+    assert.equal(calls, 1)
+  })
 })
 
 describe('memo helper', () => {

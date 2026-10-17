@@ -41,6 +41,10 @@ const EMPTY: SeedIndex = { items: [], byName: new Map(), generatedAt: null }
 let provider: SeedProvider | null = null
 let index: SeedIndex | null = null
 let loading: Promise<SeedIndex> | null = null
+/** After a failed load, wait before trying again instead of hammering assets. */
+let retryAfter = 0
+
+const RETRY_DELAY_MS = 30_000
 
 function parse(payload: SeedPayload): SeedFile {
   return typeof payload === 'string' ? (JSON.parse(payload) as SeedFile) : payload
@@ -59,6 +63,7 @@ export function setSeedProvider(next: SeedProvider | null): void {
   provider = next
   index = null
   loading = null
+  retryAfter = 0
 }
 
 /** Registers a provider only once, so per-request calls keep the cached index. */
@@ -75,10 +80,7 @@ export function isSeedLoaded(): boolean {
 export function getSeed(): Promise<SeedIndex> {
   if (index) return Promise.resolve(index)
   if (loading) return loading
-  if (!provider) {
-    index = EMPTY
-    return Promise.resolve(EMPTY)
-  }
+  if (!provider || Date.now() < retryAfter) return Promise.resolve(EMPTY)
 
   const source = provider
   loading = source()
@@ -88,10 +90,10 @@ export function getSeed(): Promise<SeedIndex> {
       return ready
     })
     .catch((error: unknown) => {
-      // A broken snapshot must not take the API down: remember the failure as
-      // an empty index instead of retrying on every request.
+      // A broken snapshot must not take the API down, and a snapshot that is
+      // temporarily unavailable must not be cached away forever either.
       console.error('[orbit] seed snapshot unavailable', error)
-      index = EMPTY
+      retryAfter = Date.now() + RETRY_DELAY_MS
       return EMPTY
     })
     .finally(() => {
@@ -121,4 +123,5 @@ export function resetSeedMemo(): void {
   MEMO.clear()
   index = null
   loading = null
+  retryAfter = 0
 }

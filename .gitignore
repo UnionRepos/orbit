@@ -1,0 +1,10 @@
+node_modules
+dist
+.orbit-cache
+.env
+.env.local
+*.log
+.DS_Store
+.wrangler
+.dev.vars
+.wrangler-dry-run

@@ -12,8 +12,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 
-const PRECACHE_PATTERN = /\.(?:js|css|html|webmanifest|svg|png|ico|woff2|txt|json)$/i
+const PRECACHE_PATTERN = /\.(?:js|css|html|webmanifest|svg|png|ico)$/i
 const SKIP_FILES = new Set(['sw.js'])
+
+/** Files the shell cannot start without, on top of the entry assets. */
+const SHELL_FILES = ['/', 'index.html', 'manifest.webmanifest', 'favicon.svg']
 
 async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true })
@@ -27,6 +30,22 @@ async function collectFiles(dir: string, prefix = ''): Promise<string[]> {
     }
   }
   return files
+}
+
+/**
+ * The assets the app boots with, read back from the emitted HTML.
+ *
+ * Only these are worth precaching: every other chunk, font and the curated
+ * snapshot are cached the first time they are actually used, so installing the
+ * service worker no longer re-downloads the whole build on a first visit.
+ */
+async function entryAssets(outDir: string): Promise<string[]> {
+  const html = await fs.readFile(path.join(outDir, 'index.html'), 'utf8').catch(() => '')
+  const found = new Set<string>()
+  for (const match of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) {
+    found.add(match[1].replace(/^\//, ''))
+  }
+  return [...found]
 }
 
 export function orbitPwaPlugin(): Plugin {
@@ -43,12 +62,17 @@ export function orbitPwaPlugin(): Plugin {
       const template = await fs.readFile(swPath, 'utf8').catch(() => null)
       if (!template) return
 
-      const files = (await collectFiles(outDir))
-        .filter((file) => !SKIP_FILES.has(file))
-        .filter((file) => PRECACHE_PATTERN.test(file))
-        .sort()
-
-      const precache = files.map((file) => `/${file}`)
+      const files = await collectFiles(outDir)
+      const wanted = new Set([...SHELL_FILES, ...(await entryAssets(outDir))])
+      const precache = [
+        '/',
+        ...files
+          .filter((file) => wanted.has(file))
+          .filter((file) => !SKIP_FILES.has(file))
+          .filter((file) => PRECACHE_PATTERN.test(file))
+          .sort()
+          .map((file) => `/${file}`),
+      ]
       const buildId = createHash('sha256').update(precache.join('|')).digest('hex').slice(0, 12)
 
       const source = template

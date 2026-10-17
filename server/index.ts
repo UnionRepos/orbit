@@ -3,6 +3,8 @@ import path from 'node:path'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { initNodeRuntime } from './node-runtime.ts'
+// Registers the bundled snapshot as the fallback feed source for local runs.
+import './seed-node.ts'
 
 initNodeRuntime()
 
@@ -28,5 +30,7 @@ const port = Number(process.env.PORT) || 8787
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`\n  ✦ Orbit is live at http://localhost:${info.port}`)
   console.log(`    token: ${config.token ? 'configured' : 'not set (60 req/h core, 10/min search)'}`)
-  console.log(`    curated fallback repos: ${seedCount()}\n`)
+  void seedCount().then((count) => {
+    console.log(`    curated fallback repos: ${count}\n`)
+  })
 })

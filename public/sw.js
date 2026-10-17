@@ -2,9 +2,10 @@
  * Orbit service worker.
  *
  * Offline behaviour:
- *  - the app shell (index.html + every hashed asset) is precached on install,
- *    so any route opens offline and the SPA router takes over;
- *  - hashed /assets/ files are cache-first because their names are immutable;
+ *  - the app shell (index.html + the entry assets it references) is precached
+ *    on install, so any route opens offline and the SPA router takes over;
+ *  - hashed /assets/ files are cache-first because their names are immutable,
+ *    and are stored the first time they are used (lazy chunks, fonts);
  *  - other same-origin files (fonts, icons, the manifest) are served from the
  *    cache and refreshed in the background;
  *  - API reads are network-first with the last good response as the fallback,
@@ -30,7 +31,10 @@ self.addEventListener('install', (event) => {
       await Promise.all(
         PRECACHE.map(async (url) => {
           try {
-            await cache.add(new Request(url, { cache: 'reload' }))
+            // Prefer the HTTP cache: the page has just downloaded these files
+            // with immutable headers, so a fresh install reuses them instead of
+            // paying for a second copy of the bundle.
+            await cache.add(new Request(url))
           } catch (error) {
             // A single missing file must not fail the whole install.
             console.warn('[orbit sw] precache skipped', url, error)

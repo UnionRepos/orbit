@@ -8,6 +8,8 @@ import {
   seedFeed,
   seedRepo,
 } from './feed.ts'
+// Registers the bundled snapshot with the lazy seed loader.
+import './seed-node.ts'
 
 const base: FeedQuery = {
   channel: 'trending',
@@ -75,24 +77,24 @@ describe('querySort', () => {
 })
 
 describe('seed snapshot', () => {
-  it('bundles curated repositories', () => {
-    assert.ok(seedCount() > 100)
+  it('bundles curated repositories', async () => {
+    assert.ok((await seedCount()) > 100)
   })
 
-  it('finds a known repository case-insensitively', () => {
-    const repo = seedRepo('Codecrafters-IO/BUILD-YOUR-OWN-X')
+  it('finds a known repository case-insensitively', async () => {
+    const repo = await seedRepo('Codecrafters-IO/BUILD-YOUR-OWN-X')
     assert.ok(repo)
     assert.equal(repo.fullName.toLowerCase(), 'codecrafters-io/build-your-own-x')
   })
 
-  it('filters by language and topic', () => {
-    const rust = seedFeed({ ...base, language: 'Rust', perPage: 12 })
+  it('filters by language and topic', async () => {
+    const rust = await seedFeed({ ...base, language: 'Rust', perPage: 12 })
     assert.ok(rust.length > 0)
     assert.ok(rust.every((repo) => repo.language === 'Rust'))
   })
 
-  it('sorts by stars descending', () => {
-    const items = seedFeed({ ...base, sort: 'stars' })
+  it('sorts by stars descending', async () => {
+    const items = await seedFeed({ ...base, sort: 'stars' })
     for (let i = 1; i < items.length; i++) {
       assert.ok(items[i - 1].stars >= items[i].stars)
     }

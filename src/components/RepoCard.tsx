@@ -11,6 +11,7 @@ import { languageColor } from '../../shared/languages.ts'
 import { useOrbit } from '../context/OrbitContext.tsx'
 import { useI18n } from '../i18n/index.ts'
 import { compactNumber, fullNumber, relativeTime, starVelocity } from '../lib/format.ts'
+import { preloadRepoPage } from '../lib/preload.ts'
 import { cacheRepo } from '../lib/repoCache.ts'
 import { feedPath, navigate, repoPath, userPath } from '../lib/router.ts'
 
@@ -73,7 +74,15 @@ export function RepoCard({ repo, rank, variant = 'feed' }: RepoCardProps) {
               {repo.owner.login}
             </button>
             <h3>
-              <a className="repo-name" href={`#${repoPath(repo.owner.login, repo.name)}`} onClick={() => cacheRepo(repo)}>{repo.name}</a>
+              <a
+                className="repo-name"
+                href={`#${repoPath(repo.owner.login, repo.name)}`}
+                onClick={() => cacheRepo(repo)}
+                onPointerEnter={preloadRepoPage}
+                onFocus={preloadRepoPage}
+              >
+                {repo.name}
+              </a>
               <ExternalButton repo={repo} />
               {repo.archived && <span className="badge badge-muted">{t('card.archived')}</span>}
               {!repo.archived && ageDays < 30 && <span className="badge badge-new">{t('card.new')}</span>}

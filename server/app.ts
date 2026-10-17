@@ -12,8 +12,9 @@ import type {
   UserResponse,
 } from '../shared/types.ts'
 import { config, hasToken } from './config.ts'
-import { buildSearchQuery, querySort, seedCount, seedFeed, seedRepo } from './feed.ts'
-import { GitHubError, cache, getRate, ghJson, rawText } from './github.ts'
+import { edgeCache } from './edge.ts'
+import { buildSearchQuery, querySort, seedCount, seedFeed, seedGeneratedAt, seedRepo } from './feed.ts'
+import { GitHubError, cache, getRate, ghJson, rawText, type GhResult } from './github.ts'
 import {
   toContributors,
   toLanguages,
@@ -26,7 +27,6 @@ import {
   type GhUser,
 } from './map.ts'
 import { recallRepo, rememberRepo } from './memo.ts'
-import { seedGeneratedAt } from './seed.ts'
 
 interface GhSearchPayload {
   total_count: number
@@ -40,6 +40,10 @@ const SORTS: FeedQuery['sort'][] = ['best', 'stars', 'updated', 'forks']
 export const app = new Hono()
 
 app.use('/api/*', cors({ origin: '*', allowMethods: ['GET', 'OPTIONS'] }))
+
+// Serve repeat reads from the Cloudflare edge cache, so a freshly started
+// isolate answers in a few milliseconds instead of waiting on GitHub again.
+app.use('/api/*', edgeCache())
 
 function parseFeedQuery(url: URL): FeedQuery {
   const qp = url.searchParams
@@ -133,7 +137,7 @@ app.get('/api/feed', async (c) => {
     }
     return c.json(payload)
   } catch (error) {
-    const fallback = seedFeed(params)
+    const fallback = await seedFeed(params)
     if (fallback.length > 0) {
       const offset = (params.page - 1) * params.perPage
       const items = fallback.slice(offset, offset + params.perPage)
@@ -149,7 +153,7 @@ app.get('/api/feed', async (c) => {
         rate: getRate(),
         channel: params.channel,
         hasToken,
-        note: `Live GitHub data is unavailable (${seedCount()} curated projects loaded). Showing the built-in snapshot.`,
+        note: `Live GitHub data is unavailable (${await seedCount()} curated projects loaded). Showing the built-in snapshot.`,
       }
       return c.json(payload)
     }
@@ -180,7 +184,7 @@ app.get('/api/repo/:owner/:repo', async (c) => {
     source = repoResult.value.source
     rememberRepo(repo)
   } else {
-    repo = recallRepo(fullName) ?? seedRepo(fullName)
+    repo = recallRepo(fullName) ?? (await seedRepo(fullName))
     if (!repo) throw repoResult.reason
     source = 'seed'
   }
@@ -206,14 +210,42 @@ app.get('/api/repo/:owner/:repo', async (c) => {
   return c.json(payload)
 })
 
-const README_CANDIDATES = [
-  'README.md',
-  'readme.md',
-  'Readme.md',
-  'README.rst',
-  'README',
-  'docs/README.md',
+/**
+ * Candidates are probed in parallel waves (keeping priority order) instead of
+ * one round trip after another: a repo whose README has an unusual name pays
+ * three round trips instead of six.
+ */
+const README_WAVES: string[][] = [
+  ['README.md', 'readme.md'],
+  ['Readme.md', 'README.rst', 'README'],
+  ['docs/README.md'],
 ]
+
+interface ReadmeHit {
+  path: string
+  data: string
+  source: GhResult<string>['source']
+}
+
+async function findReadme(owner: string, repoName: string): Promise<ReadmeHit | null> {
+  for (const wave of README_WAVES) {
+    const settled = await Promise.all(
+      wave.map(async (candidate): Promise<ReadmeHit | null> => {
+        try {
+          const result = await rawText(
+            `https://raw.githubusercontent.com/${owner}/${repoName}/HEAD/${candidate}`,
+          )
+          return { path: candidate, data: result.data, source: result.source }
+        } catch {
+          return null
+        }
+      }),
+    )
+    const hit = settled.find((result): result is ReadmeHit => result !== null)
+    if (hit) return hit
+  }
+  return null
+}
 
 app.get('/api/readme/:owner/:repo', async (c) => {
   const owner = c.req.param('owner')
@@ -224,21 +256,15 @@ app.get('/api/readme/:owner/:repo', async (c) => {
 
   c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=900')
 
-  for (const candidate of README_CANDIDATES) {
-    try {
-      const result = await rawText(
-        `https://raw.githubusercontent.com/${owner}/${repoName}/HEAD/${candidate}`,
-      )
-      const payload: ReadmeResponse = {
-        markdown: truncateReadme(result.data),
-        path: candidate,
-        htmlUrl: `https://github.com/${owner}/${repoName}/blob/HEAD/${candidate}`,
-        source: result.source,
-      }
-      return c.json(payload)
-    } catch {
-      // Try the next filename.
+  const found = await findReadme(owner, repoName)
+  if (found) {
+    const payload: ReadmeResponse = {
+      markdown: truncateReadme(found.data),
+      path: found.path,
+      htmlUrl: `https://github.com/${owner}/${repoName}/blob/HEAD/${found.path}`,
+      source: found.source,
     }
+    return c.json(payload)
   }
 
   // Last resort: ask the API which file the repo uses as its README.
@@ -337,9 +363,9 @@ app.get('/api/search', async (c) => {
   return c.json(payload)
 })
 
-app.get('/api/seed', (c) => {
+app.get('/api/seed', async (c) => {
   c.header('Cache-Control', 'public, max-age=3600')
-  return c.json({ count: seedCount(), generatedAt: seedGeneratedAt })
+  return c.json({ count: await seedCount(), generatedAt: await seedGeneratedAt() })
 })
 
 /** `process` does not exist on every runtime (Cloudflare Workers). */

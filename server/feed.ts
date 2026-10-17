@@ -1,13 +1,20 @@
 import type { ChannelId, FeedQuery, RepoSummary } from '../shared/types.ts'
-import { seedItems } from './seed.ts'
+import { getSeed, memo } from './seed-core.ts'
 
-export function seedRepo(fullName: string): RepoSummary | undefined {
-  const key = fullName.toLowerCase()
-  return seedItems.find((repo) => repo.fullName.toLowerCase() === key)
+export async function seedRepo(fullName: string): Promise<RepoSummary | undefined> {
+  const { byName } = await getSeed()
+  return byName.get(fullName.toLowerCase())
 }
 
-export function seedCount(): number {
-  return seedItems.length
+export async function seedCount(): Promise<number> {
+  const { items } = await getSeed()
+  return items.length
+}
+
+/** Generation timestamp of the curated snapshot, once it is loaded. */
+export async function seedGeneratedAt(): Promise<string | null> {
+  const { generatedAt } = await getSeed()
+  return generatedAt
 }
 
 const DAY = 86_400_000
@@ -80,12 +87,31 @@ export function querySort(params: FeedQuery): { sort?: string; order: 'desc' | '
   return { sort: params.sort, order: 'desc' }
 }
 
-/** Offline/rate-limited fallback: filter the bundled snapshot. */
-export function seedFeed(params: FeedQuery): RepoSummary[] {
+/**
+ * Offline/rate-limited fallback: filter the curated snapshot.
+ *
+ * The channel pool (channel constraints applied) is memoised per channel and
+ * day, because it is the expensive part: it walks the whole snapshot and
+ * compares ISO timestamps for every repository. The user's own filters are
+ * then applied to that smaller pool.
+ */
+export async function seedFeed(params: FeedQuery): Promise<RepoSummary[]> {
   const spec = CHANNEL_SPECS[params.channel]
+  const { items: all } = await getSeed()
   const q = params.q.toLowerCase()
 
-  let items = seedItems.filter((repo) => {
+  const pool = memo(`pool:${params.channel}:${Math.floor(Date.now() / DAY)}`, () => {
+    const channelFiltered = all.filter((repo) => {
+      if (spec.createdWithin && ageDays(repo.createdAt) > spec.createdWithin) return false
+      if (spec.pushedWithin && ageDays(repo.pushedAt) > spec.pushedWithin) return false
+      if (repo.stars < spec.minStars) return false
+      if (spec.maxStars && repo.stars > spec.maxStars) return false
+      return true
+    })
+    return channelFiltered.length >= 4 ? channelFiltered : all
+  })
+
+  const items = pool.filter((repo) => {
     if (q) {
       const haystack = `${repo.fullName} ${repo.description ?? ''} ${repo.topics.join(' ')}`.toLowerCase()
       if (!haystack.includes(q)) return false
@@ -97,23 +123,11 @@ export function seedFeed(params: FeedQuery): RepoSummary[] {
     return true
   })
 
-  const channelFiltered = items.filter((repo) => {
-    if (spec.createdWithin && ageDays(repo.createdAt) > spec.createdWithin) return false
-    if (spec.pushedWithin && ageDays(repo.pushedAt) > spec.pushedWithin) return false
-    if (repo.stars < spec.minStars) return false
-    if (spec.maxStars && repo.stars > spec.maxStars) return false
-    return true
-  })
-
-  if (channelFiltered.length >= 4) items = channelFiltered
-
   const sort = params.sort === 'best' ? spec.sort : params.sort
-  items = [...items].sort((a, b) => {
+  return [...items].sort((a, b) => {
     if (sort === 'stars') return b.stars - a.stars
     if (sort === 'forks') return b.forks - a.forks
     if (sort === 'updated') return Date.parse(b.pushedAt) - Date.parse(a.pushedAt)
     return b.heat - a.heat
   })
-
-  return items
 }

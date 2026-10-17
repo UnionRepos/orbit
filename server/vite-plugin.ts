@@ -20,7 +20,8 @@ export function orbitApiPlugin(): Plugin {
             const [{ getRequestListener }, { initNodeRuntime }, { app }] = await Promise.all([
               import('@hono/node-server'),
               import('./node-runtime.ts'),
-              import('./app.ts'),
+              // Registers the bundled snapshot as the fallback feed source.
+              import('./seed-node.ts').then(async () => import('./app.ts')),
             ])
             initNodeRuntime()
             listener = getRequestListener(app.fetch) as unknown as (req: unknown, res: unknown) => void

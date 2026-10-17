@@ -49,7 +49,70 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Static shell rendered before the bundle executes: the first paint shows the
+      page structure and card placeholders instead of a blank screen. React
+      clears this node when it mounts.
+    -->
+    <div id="root">
+      <div class="boot-shell" id="boot-shell">
+        <div class="feed-layout">
+          <aside class="filter-rail" aria-hidden="true"></aside>
+          <main class="feed-main">
+            <div class="feed-list" aria-hidden="true">
+              <div class="repo-card skeleton-card">
+                <div class="skeleton skeleton-avatar"></div>
+                <div class="skeleton-body">
+                  <div class="skeleton skeleton-line w-30"></div>
+                  <div class="skeleton skeleton-line w-70 tall"></div>
+                  <div class="skeleton skeleton-line w-90"></div>
+                  <div class="skeleton-chip-row">
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="repo-card skeleton-card">
+                <div class="skeleton skeleton-avatar"></div>
+                <div class="skeleton-body">
+                  <div class="skeleton skeleton-line w-30"></div>
+                  <div class="skeleton skeleton-line w-70 tall"></div>
+                  <div class="skeleton skeleton-line w-90"></div>
+                  <div class="skeleton-chip-row">
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="repo-card skeleton-card">
+                <div class="skeleton skeleton-avatar"></div>
+                <div class="skeleton-body">
+                  <div class="skeleton skeleton-line w-30"></div>
+                  <div class="skeleton skeleton-line w-70 tall"></div>
+                  <div class="skeleton skeleton-line w-90"></div>
+                  <div class="skeleton-chip-row">
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                    <div class="skeleton skeleton-chip"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+    <noscript>Orbit needs JavaScript to render the feed.</noscript>
+    <script>
+      // The static shell mirrors the feed; drop it when the link points elsewhere.
+      try {
+        if (/^#\/(repo|user|u|saved|about)\b/.test(location.hash)) {
+          document.getElementById('boot-shell')?.remove()
+        }
+      } catch {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

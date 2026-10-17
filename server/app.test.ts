@@ -3,6 +3,8 @@ import { describe, it } from 'node:test'
 
 process.env.ORBIT_CACHE_FILE = `/tmp/orbit-test-cache-${process.pid}.json`
 
+// Registers the bundled snapshot so the curated fallback can be exercised.
+await import('./seed-node.ts')
 const { app } = await import('./app.ts')
 
 const now = Date.now()

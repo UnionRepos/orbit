@@ -115,9 +115,15 @@ export function OrbitProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const cancel = fetchHealth()
+    // Health is decorative: wait for the first feed request to claim the
+    // connection, then start polling.
+    let cancel = () => {}
+    const start = window.setTimeout(() => {
+      cancel = fetchHealth()
+    }, 1200)
     const interval = window.setInterval(() => fetchHealth(), 60_000)
     return () => {
+      window.clearTimeout(start)
       cancel()
       window.clearInterval(interval)
     }

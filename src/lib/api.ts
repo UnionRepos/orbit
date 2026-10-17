@@ -22,7 +22,40 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+/**
+ * Requests started before React mounts (and on hover) live here so the hooks
+ * can pick them up instead of waiting for a second round trip.
+ */
+const PREFETCHED = new Map<string, Promise<unknown>>()
+/** One network round trip per URL, shared by every consumer. */
+const INFLIGHT = new Map<string, Promise<unknown>>()
+
+function abortError(): Error {
+  if (typeof DOMException === 'function') return new DOMException('Aborted', 'AbortError')
+  return Object.assign(new Error('Aborted'), { name: 'AbortError' })
+}
+
+/** Awaits a shared promise while still honouring this caller's abort signal. */
+function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject(abortError())
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError())
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+async function send<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     signal,
     headers: { Accept: 'application/json' },
@@ -50,7 +83,32 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T
 }
 
-export function getFeed(params: FeedQuery, page = 1, signal?: AbortSignal): Promise<FeedResponse> {
+function shared<T>(path: string): Promise<T> {
+  const existing = INFLIGHT.get(path) as Promise<T> | undefined
+  if (existing) return existing
+  const promise = send<T>(path).finally(() => INFLIGHT.delete(path))
+  INFLIGHT.set(path, promise)
+  return promise
+}
+
+function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const prefetched = PREFETCHED.get(path)
+  if (prefetched) {
+    PREFETCHED.delete(path)
+    return abortable(prefetched as Promise<T>, signal)
+  }
+  return abortable(shared<T>(path), signal)
+}
+
+/** Starts a request early; the next `request()` for the same URL reuses it. */
+function prefetch<T>(path: string): void {
+  if (PREFETCHED.has(path)) return
+  const promise = request<T>(path)
+  PREFETCHED.set(path, promise)
+  promise.catch(() => PREFETCHED.delete(path))
+}
+
+export function feedPath(params: FeedQuery, page = 1): string {
   const search = new URLSearchParams({
     channel: params.channel,
     page: String(page),
@@ -62,7 +120,19 @@ export function getFeed(params: FeedQuery, page = 1, signal?: AbortSignal): Prom
   if (params.minStars) search.set('minStars', String(params.minStars))
   if (params.createdWithin) search.set('createdWithin', String(params.createdWithin))
   if (params.sort && params.sort !== 'best') search.set('sort', params.sort)
-  return request<FeedResponse>(`/api/feed?${search.toString()}`, signal)
+  return `/api/feed?${search.toString()}`
+}
+
+export function getFeed(params: FeedQuery, page = 1, signal?: AbortSignal): Promise<FeedResponse> {
+  return request<FeedResponse>(feedPath(params, page), signal)
+}
+
+/**
+ * Warms the first page before the component tree mounts, removing the
+ * render → effect → fetch waterfall from the critical path.
+ */
+export function prefetchFeed(params: FeedQuery): void {
+  prefetch<FeedResponse>(feedPath(params, 1))
 }
 
 export function getRepo(owner: string, repo: string, signal?: AbortSignal): Promise<RepoDetail> {

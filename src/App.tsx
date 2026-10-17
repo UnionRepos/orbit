@@ -1,18 +1,39 @@
-import { Component, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from 'react'
+import { Component, lazy, Suspense, useEffect, useLayoutEffect, useState, type ErrorInfo, type ReactNode } from 'react'
 import { WifiOff } from 'lucide-react'
 import { OrbitProvider, useOrbit } from './context/OrbitContext.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FeedPage } from './components/FeedPage.tsx'
-import { RepoDetailPage } from './components/RepoDetailPage.tsx'
-import { UserPage } from './components/UserPage.tsx'
-import { SavedPage } from './components/SavedPage.tsx'
-import { AboutPage } from './components/AboutPage.tsx'
-import { CommandPalette } from './components/CommandPalette.tsx'
 import { Toasts } from './components/Toasts.tsx'
 import { I18nProvider, t, useI18n } from './i18n/index.ts'
 import { parseRoute, rememberFeedPath, type Route } from './lib/router.ts'
 import { recallScroll, routeScrollKey } from './lib/scrollMemory.ts'
 import { useOnlineStatus, useServiceWorkerUpdate } from './hooks/usePwa.ts'
+
+/**
+ * The feed is the landing route and stays in the entry chunk; everything else
+ * is split out. The project page alone drags in the markdown renderer and the
+ * sanitiser, which is close to a third of the JavaScript on a first visit.
+ */
+const RepoDetailPage = lazy(() =>
+  import('./components/RepoDetailPage.tsx').then((module) => ({ default: module.RepoDetailPage })),
+)
+const UserPage = lazy(() =>
+  import('./components/UserPage.tsx').then((module) => ({ default: module.UserPage })),
+)
+const SavedPage = lazy(() =>
+  import('./components/SavedPage.tsx').then((module) => ({ default: module.SavedPage })),
+)
+const AboutPage = lazy(() =>
+  import('./components/AboutPage.tsx').then((module) => ({ default: module.AboutPage })),
+)
+const CommandPalette = lazy(() =>
+  import('./components/CommandPalette.tsx').then((module) => ({ default: module.CommandPalette })),
+)
+
+/** Silently renders nothing while a split route is fetched; keeps layout stable. */
+function RouteFallback() {
+  return <div className="route-loading" aria-busy="true" />
+}
 
 function useRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseRoute())
@@ -67,6 +88,7 @@ function AppShell() {
   let page: ReactNode
   switch (route.name) {
     case 'repo':
+      // `lazy()` starts fetching the page chunk on this first render.
       page = (
         <RepoDetailPage
           key={`${route.owner}/${route.repo}`}
@@ -96,8 +118,12 @@ function AppShell() {
         </div>
       )}
       <TopBar route={route} />
-      <div className="page" id="main-content" tabIndex={-1}>{page}</div>
-      <CommandPalette />
+      <div className="page" id="main-content" tabIndex={-1}>
+        <Suspense fallback={<RouteFallback />}>{page}</Suspense>
+      </div>
+      <Suspense fallback={null}>
+        <CommandPalette />
+      </Suspense>
       <Toasts />
     </>
   )

@@ -1,4 +1,5 @@
 import type { RateInfo } from '../shared/types.ts'
+import { runInBackground } from './background.ts'
 import { JsonCache } from './cache.ts'
 import { config, hasToken } from './config.ts'
 
@@ -25,6 +26,8 @@ export interface GhOptions {
   ttl: number
   accept?: string
   text?: boolean
+  /** Internal: bypass stale-while-revalidate (used by the refresh itself). */
+  revalidate?: boolean
 }
 
 const API = 'https://api.github.com'
@@ -67,6 +70,14 @@ async function request<T>(path: string, options: GhOptions): Promise<GhResult<T>
   const entry = cache.get(key)
 
   if (entry && cache.isFresh(entry)) {
+    return { data: entry.data as T, source: 'cache', fetchedAt: entry.fetchedAt, etag: entry.etag }
+  }
+
+  // Stale-while-revalidate: an expired entry is still far better than making
+  // the reader wait for GitHub. Hand it over immediately and refresh in the
+  // background, so the next visitor gets a fresh copy.
+  if (entry && !options.revalidate) {
+    runInBackground(ghJson<T>(path, { ...options, revalidate: true }).catch(() => undefined))
     return { data: entry.data as T, source: 'cache', fetchedAt: entry.fetchedAt, etag: entry.etag }
   }
 

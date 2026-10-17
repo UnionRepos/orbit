@@ -681,6 +681,13 @@ kbd {
   padding: 40px 32px 80px;
 }
 
+/* Static shell in index.html: first paint happens before the bundle runs. */
+.boot-shell {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
 .page-narrow {
   max-width: 760px;
   margin: 0 auto;
@@ -2271,6 +2278,12 @@ kbd {
 /* ============================================================
    Skeletons
    ============================================================ */
+
+/* Holds the page height while a split route chunk is fetched, so the footer
+   and scroll position do not jump when the page appears. */
+.route-loading {
+  min-height: 60vh;
+}
 
 .skeleton {
   background: linear-gradient(

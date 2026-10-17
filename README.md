@@ -30,7 +30,10 @@ channels, momentum scoring, readable READMEs, and a local reading list.
 - **Command palette** — `⌘K` / `Ctrl+K` to search GitHub, jump channels, switch theme, or open
   saved work, with full keyboard navigation.
 - **Resilient by design** — conditional requests, in-flight deduplication, memory + disk cache,
-  stale-while-error responses, and a 229-project curated seed snapshot for offline use.
+  stale-while-revalidate responses, edge-cached API reads, and a 229-project curated seed
+  snapshot for offline use.
+- **Fast cold starts** — the Worker script carries no data, route bundles load on demand, and
+  the first feed request starts before React mounts (see [Performance](#performance)).
 - **Installable PWA** — a web app manifest, generated maskable icons, an install button, and a
   service worker that precaches the app shell and falls back to cached API reads when offline.
 - **Dark + light themes**, responsive from desktop to phone, and a mobile filter sheet.
@@ -89,13 +92,16 @@ src/                 React 19 client
   i18n/              locale state, en/zh dictionaries, useI18n()
   lib/               router (hash-based), API client, Markdown, formatting
 server/              Hono API + static file server
-  github.ts          GitHub REST client, ETag revalidation, quotas
+  github.ts          GitHub REST client, ETag revalidation, stale-while-revalidate
   cache.ts           memory + disk cache with in-flight deduplication
+  edge.ts            Cloudflare Cache API layer for API reads
   feed.ts            channel queries, ranking, momentum scoring, seed fallback
-  seed.json          229 curated high-signal repositories
-  *.test.ts          API, mapping, query and formatting tests
+  seed-core.ts       lazy, provider-based loader for the curated snapshot
+  seed-node.ts       Node provider (bundles seed.json; the Worker does not)
+  seed.json          229 curated high-signal repositories (published as /seed.json)
+  *.test.ts          API, mapping, query, cache and formatting tests
 shared/              Types and language colors used by both sides
-scripts/             Seed builder
+scripts/             Seed builder, PWA + seed Vite plugins
 worker/              Cloudflare Workers entry (Hono API + static assets)
 wrangler.jsonc       Workers deployment config
 ```
@@ -120,6 +126,10 @@ about where the data came from.
 - GitHub requests use `If-None-Match`; a `304 Not Modified` does not count against the quota.
 - Identical in-flight requests are deduplicated.
 - Successful responses are written to `.orbit-cache/` with a TTL.
+- An expired entry is served immediately while a background refresh runs, so no reader waits on
+  GitHub just because a TTL lapsed.
+- On Cloudflare, successful reads are also stored through the Cache API (`caches.default`) for
+  20–300 s per route, so a fresh Worker isolate answers from the edge instead of calling GitHub.
 - When GitHub is unavailable or throttled, the server serves stale cache first, then a filtered
   seed snapshot. The feed never renders an empty shell.
 
@@ -147,11 +157,12 @@ Lucide's [`orbit`](https://lucide.dev/icons/orbit) glyph by `npm run icons`, so 
 library icon rather than hand-drawn art. The generated files in `public/` are committed, so a normal
 build needs no image tooling.
 
-`public/sw.js` is the service worker. It precaches the shell plus every hashed asset for the current
-build (the file list and build id are injected into `dist/sw.js` by `scripts/vite-plugin-pwa.ts`),
-serves `/assets/*` cache-first, revalidates other same-origin files in the background, and answers
-`/api/*` reads network-first with the last good response as the offline fallback. Navigations that
-miss the network open the cached shell, so any route keeps working offline.
+`public/sw.js` is the service worker. It precaches the shell and the entry assets referenced by
+`index.html` (the file list and build id are injected into `dist/sw.js` by
+`scripts/vite-plugin-pwa.ts`), serves `/assets/*` cache-first — storing lazy chunks, fonts and
+icons the first time they are used — revalidates other same-origin files in the background, and
+answers `/api/*` reads network-first with the last good response as the offline fallback.
+Navigations that miss the network open the cached shell, so any route keeps working offline.
 
 The worker is registered in production builds only (`src/hooks/usePwa.ts`). When a new build is
 waiting, the app shows a toast with a reload action; the top bar exposes the install prompt once the
@@ -179,7 +190,38 @@ npx wrangler secret put GITHUB_TOKEN
 The Worker config lives in `wrangler.jsonc` (`assets.directory: ./dist`, with
 `run_worker_first: ["/api/*"]`, plus a `custom_domain` route for `orbit.openhub.today`). `npm run worker:dev` runs the exact production bundle locally via
 Wrangler. The disk cache is Node-only; on Workers the app keeps a per-isolate in-memory cache and
-relies on the `Cache-Control` headers for the edge cache.
+uses the Cache API plus `Cache-Control` headers for the edge cache.
+
+## Performance
+
+Cold starts were the main latency source, on both sides of the wire.
+
+**Worker start-up (92 KiB of script, 24 KiB gzipped).** The 1.2 MB curated snapshot is no longer
+bundled into the Worker: `server/seed-core.ts` loads it through a provider, and the Worker fetches
+`/seed.json` from the asset bundle only when GitHub actually fails. Nothing in the script touches
+the snapshot at module init, so an isolate boots without parsing or mapping 229 repositories.
+
+**Edge instead of GitHub.** `server/edge.ts` stores successful API reads in the Cloudflare cache;
+a brand-new isolate answers a repeat URL from the edge (single-digit milliseconds) rather than
+waiting for GitHub. Expired in-memory entries are served immediately while refreshing in the
+background, `ctx.waitUntil` keeps the work off the response path, and failed refreshes fall back to
+the cached copy.
+
+**Less JavaScript before the first card.** Route bundles load on demand — the project page alone
+(markdown-it + DOMPurify) was a third of the entry chunk, and it is now a 147 kB chunk fetched on
+hover or navigation. The entry chunk dropped from 485 kB to 313 kB (163 → 100 kB gzipped).
+
+**One round trip, started earlier.** `main.tsx` starts the first feed request before React mounts
+and `src/lib/api.ts` shares it with the hook, so the list has data while the tree is still
+rendering. Identical in-flight requests are collapsed, aborts only affect their own caller, and the
+decorative health poll waits for the feed request to claim the connection first.
+
+**Something on screen immediately.** `index.html` ships a static shell (feed layout + card
+placeholders) that React clears on mount, so the first paint no longer waits for the bundle. The
+static markup is dropped early when a deep link points at another route.
+
+The service worker precaches only the shell and the entry assets, reusing the HTTP cache for files
+the page has already downloaded instead of fetching a second copy during install.
 
 ## Notes
 

@@ -21,7 +21,8 @@ env:
 jobs:
   deploy:
     name: Deploy to Cloudflare Workers
-    runs-on: ubuntu-latest
+    # Pin the image: ubuntu-latest migrates to Ubuntu 26 from 2026-10-19.
+    runs-on: ubuntu-24.04
     # A manual dispatch can pick any ref; only ever ship main.
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -73,9 +74,10 @@ jobs:
 
       # Translation is served through an operator-supplied relay
       # (TRANSLATION_RELAY_URL/TOKEN Worker secrets on a verified Node host).
-      # Until that infrastructure exists the probe is informational only, so a
+      # Until that infrastructure exists the probe warns instead of failing, so a
       # missing optional relay cannot turn every deploy red; set the repository
       # variable TRANSLATION_SMOKE=enabled to make it a hard release gate.
       - name: Smoke test translation provider
-        continue-on-error: ${{ vars.TRANSLATION_SMOKE != 'enabled' }}
+        env:
+          TRANSLATION_SMOKE_STRICT: ${{ vars.TRANSLATION_SMOKE == 'enabled' && '1' || '0' }}
         run: node scripts/smoke-translation.ts

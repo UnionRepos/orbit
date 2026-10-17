@@ -1,4 +1,7 @@
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
+import { TranslationGate } from './translationGate.ts'
+import { parseReadmeTranslation, translateReadme } from './readmeTranslation.ts'
 import { joinTranslationPieces, splitTranslationText, utf8Length } from '../shared/translationChunks.ts'
 import { fitsTranslationBudget, INDEX_OUTPUT_TOKENS, translationQualityIssue, translationUsageIssue, type TranslationUsage } from './translationQuality.ts'
 import { bodyLimit } from 'hono/body-limit'
@@ -87,10 +90,20 @@ export function parseTranslationOutput(content: unknown, texts: string[]): strin
 export class TranslationService {
   private cache = new Map<string, { text: string; expires: number }>()
   private active = 0
+  private pieces = new Map<string, { text: string; expires: number }>()
+  private gate: TranslationGate
   private fetcher: typeof fetch
-  constructor(fetcher: typeof fetch = (...args) => fetch(...args)) { this.fetcher = fetcher }
+  constructor(fetcher: typeof fetch = (...args) => fetch(...args), gate = new TranslationGate()) { this.fetcher = fetcher; this.gate = gate }
 
-  async translate({ texts, target }: TranslationRequest, signal?: AbortSignal): Promise<string[]> {
+  forget(texts: string[], target: TranslationLanguage) {
+    for (const text of texts) {
+      const key = JSON.stringify([target, text])
+      this.cache.delete(key)
+      this.pieces.delete(key)
+    }
+  }
+
+  async translate({ texts, target }: TranslationRequest, signal?: AbortSignal, limits = { maxDepth: 3, maxCalls: 24 }): Promise<string[]> {
     const keys = texts.map((text) => JSON.stringify([target, text]))
     const output: string[] = new Array(texts.length)
     const missing: number[] = []
@@ -105,7 +118,7 @@ export class TranslationService {
     try {
       const timeout = AbortSignal.timeout(45_000)
       const operationSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
-      const budget = { calls: 0 }
+      const budget = { calls: 0, ...limits }
       const pieces = missing.flatMap((index) => splitTranslationText(texts[index]).map((text) => ({ index, text })))
       const results = new Map<number, string[]>()
       let group: typeof pieces = []
@@ -129,7 +142,10 @@ export class TranslationService {
       for (const index of missing) {
         const translated = joinTranslationPieces(pieces.filter((piece) => piece.index === index).map((piece) => piece.text), results.get(index)!)
         const issue = translationQualityIssue(texts[index], translated)
-        if (issue) throw new TranslationQualityError(issue)
+        if (issue) {
+          pieces.filter((piece) => piece.index === index).forEach((piece) => this.pieces.delete(JSON.stringify([target, piece.text])))
+          throw new TranslationQualityError(issue)
+        }
         output[index] = translated
       }
       operationSignal.throwIfAborted()
@@ -146,7 +162,7 @@ export class TranslationService {
     } finally { this.active-- }
   }
 
-  private async recover(texts: string[], target: TranslationLanguage, signal: AbortSignal, budget: { calls: number }, depth = 0): Promise<string[]> {
+  private async recover(texts: string[], target: TranslationLanguage, signal: AbortSignal, budget: { calls: number; maxDepth: number; maxCalls: number }, depth = 0): Promise<string[]> {
     signal.throwIfAborted()
     if (texts.some((text) => !text.trim())) {
       const result: string[] = []
@@ -154,9 +170,21 @@ export class TranslationService {
       return result
     }
     try {
-      return await this.complete(texts, target, signal, budget)
+      const keys = texts.map((text) => JSON.stringify([target, text]))
+      const cached = keys.map((key) => this.pieces.get(key))
+      if (cached.every((entry) => entry && entry.expires > Date.now())) return cached.map((entry) => entry!.text)
+      if (cached.some((entry) => entry && entry.expires > Date.now())) {
+        const missing = texts.filter((_text, index) => !cached[index] || cached[index]!.expires <= Date.now())
+        const translated = await this.recover(missing, target, signal, budget, depth)
+        let cursor = 0
+        return cached.map((entry) => entry && entry.expires > Date.now() ? entry.text : translated[cursor++])
+      }
+      const translated = await this.complete(texts, target, signal, budget)
+      translated.forEach((text, index) => this.pieces.set(keys[index], { text, expires: Date.now() + TTL }))
+      while (this.pieces.size > 2048) this.pieces.delete(this.pieces.keys().next().value!)
+      return translated
     } catch (error) {
-      if (!(error instanceof TranslationQualityError) || depth >= 3) throw error
+      if (!(error instanceof TranslationQualityError) || depth >= budget.maxDepth) throw error
       if (texts.length > 1) {
         const middle = Math.ceil(texts.length / 2)
         const left = await this.recover(texts.slice(0, middle), target, signal, budget, depth + 1)
@@ -176,47 +204,80 @@ export class TranslationService {
     }
   }
 
-  private async complete(texts: string[], target: TranslationLanguage, signal: AbortSignal, budget: { calls: number }): Promise<string[]> {
+  private async complete(texts: string[], target: TranslationLanguage, signal: AbortSignal, budget: { calls: number; maxDepth: number; maxCalls: number }): Promise<string[]> {
     signal.throwIfAborted()
     const prompt = translationPrompt(texts, target)
     if (!fitsTranslationBudget(prompt, texts)) throw new TranslationQualityError('request-budget')
-    if (budget.calls >= 24) throw new TranslationError(502, 'Translation recovery limit reached. Try again.')
+    if (budget.calls >= budget.maxCalls) throw new TranslationError(502, 'Translation recovery limit reached. Try again.')
     budget.calls++
-    const response = await this.fetcher(INDEX_TRANSLATE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Index-Translate-Client/1.0' },
-      signal,
-      body: JSON.stringify({
-        model: INDEX_TRANSLATE_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0,
-        max_tokens: INDEX_OUTPUT_TOKENS,
-        stream: false,
-        chat_template_kwargs: { enable_thinking: false },
-      }),
+    return this.gate.run(signal, async () => {
+      const response = await this.fetcher(INDEX_TRANSLATE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Index-Translate-Client/1.0' },
+        signal,
+        body: JSON.stringify({
+          model: INDEX_TRANSLATE_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0,
+          max_tokens: INDEX_OUTPUT_TOKENS,
+          stream: false,
+          chat_template_kwargs: { enable_thinking: false },
+        }),
+      })
+      if (response.status === 429) {
+        const header = response.headers.get('retry-after')
+        const seconds = Number(header)
+        const retry = Number.isFinite(seconds) && seconds > 0 ? seconds : Math.max(0, (Date.parse(header ?? '') - Date.now()) / 1000)
+        const delay = Number.isFinite(retry) && retry > 0 ? Math.min(Math.ceil(retry), 120) : 10
+        this.gate.defer(delay * 1000)
+        throw new TranslationError(429, 'The translation service is rate limited.', delay)
+      }
+      if (!response.ok) throw new TranslationError(502, 'The translation service is temporarily unavailable.')
+      const payload = await response.json() as {
+        choices?: { message?: { content?: unknown }; finish_reason?: string }[]
+        usage?: TranslationUsage
+      }
+      const choice = payload.choices?.[0]
+      if (choice?.finish_reason !== 'stop') throw new TranslationQualityError('finish-reason')
+      const issue = translationUsageIssue(payload.usage, texts.join(''))
+      if (issue) throw new TranslationQualityError(issue)
+      return parseTranslationOutput(choice.message?.content, texts)
     })
-    if (response.status === 429) {
-      const retry = Number(response.headers.get('retry-after'))
-      throw new TranslationError(429, 'The translation service is rate limited.', Number.isFinite(retry) && retry > 0 ? Math.min(retry, 120) : 30)
-    }
-    if (!response.ok) throw new TranslationError(502, 'The translation service is temporarily unavailable.')
-    const payload = await response.json() as {
-      choices?: { message?: { content?: unknown }; finish_reason?: string }[]
-      usage?: TranslationUsage
-    }
-    const choice = payload.choices?.[0]
-    if (choice?.finish_reason !== 'stop') throw new TranslationQualityError('finish-reason')
-    const issue = translationUsageIssue(payload.usage, texts.join(''))
-    if (issue) throw new TranslationQualityError(issue)
-    return parseTranslationOutput(choice.message?.content, texts)
   }
 
 }
 
 export function createTranslationRoutes(service = new TranslationService()) {
   const routes = new Hono()
+  let activeReadmes = 0
   const clients = new Map<string, { count: number; reset: number }>()
-  routes.use('*', bodyLimit({ maxSize: 32_000, onError: (c) => c.json({ error: 'Translation request is too large.' }, 413) }))
+  routes.post('/readme', bodyLimit({ maxSize: 1_000_000, onError: (c) => c.json({ error: 'README is too large.' }, 413) }), async (c) => {
+    const origin = c.req.header('origin')
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ error: 'Use the same-origin translation endpoint.' }, 403)
+    let body: unknown
+    try { body = await c.req.json() } catch { return c.json({ error: 'Expected a JSON README request.' }, 400) }
+    const request = parseReadmeTranslation(body)
+    if (!request) return c.json({ error: 'Invalid README translation request.' }, 400)
+    if (activeReadmes >= 4) return c.json({ error: 'Translation is busy.', retryAfter: 5 }, 503)
+    activeReadmes++
+    const response = streamSSE(c, async (stream) => {
+      const controller = new AbortController()
+      stream.onAbort(() => controller.abort())
+      const signal = AbortSignal.any([controller.signal, c.req.raw.signal])
+      const emit = async (event: import('../shared/translation.ts').ReadmeTranslationEvent) => {
+        signal.throwIfAborted()
+        await stream.writeSSE({ data: JSON.stringify(event) })
+      }
+      const heartbeat = setInterval(() => { void emit({ type: 'ping' }).catch(() => controller.abort()) }, 10_000)
+      try { await translateReadme(request, service, signal, emit) } catch {
+        if (!signal.aborted) await emit({ type: 'unavailable', retryAt: Date.now() + 15_000 })
+      } finally { clearInterval(heartbeat); activeReadmes-- }
+    })
+    response.headers.set('Cache-Control', 'no-store')
+    response.headers.set('X-Accel-Buffering', 'no')
+    return response
+  })
+  routes.use('/', bodyLimit({ maxSize: 32_000, onError: (c) => c.json({ error: 'Translation request is too large.' }, 413) }))
   routes.post('/', async (c) => {
     c.header('Cache-Control', 'no-store')
     const origin = c.req.header('origin')

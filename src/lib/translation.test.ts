@@ -1,122 +1,89 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { splitPassage, translatePassage, TranslationRequestError } from './translation.ts'
-import { escapeTranslationText } from './translationDom.ts'
+import { cachedTranslation, decodeTranslationEvent, requestReadmeTranslation, splitPassage, TranslationRequestError } from './translation.ts'
+import type { ReadmeTranslationEvent } from '../../shared/translation.ts'
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sse = (events: ReadmeTranslationEvent[], close = true) => {
+  const text = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
+  return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(text)); if (close) controller.close() } }), { headers: { 'Content-Type': 'text/event-stream' } })
+}
 
-test('long paragraphs split without losing text, splitting code placeholders, or cutting emoji', () => {
-  const text = `${'A sentence. '.repeat(400)}⟪ORBIT_0⟫${'文😀'.repeat(1500)}`
-  const chunks = splitPassage(text)
-  assert.equal(chunks.join(''), text)
-  assert.ok(chunks.every((chunk) => chunk.length <= 2200))
-  assert.equal(chunks.filter((chunk) => chunk.includes('⟪ORBIT_0⟫')).length, 1)
-  assert.ok(chunks.every((chunk) => !/[\uD800-\uDBFF]$/.test(chunk)))
-  assert.deepEqual(splitPassage('  '), [])
+test('long source boundaries remain lossless and Unicode/placeholder-safe', () => {
+  const source = 'A sentence. '.repeat(500) + '⟪ORBIT_0⟫' + '文😀'.repeat(500)
+  assert.equal(splitPassage(source).join(''), source)
 })
 
-test('description HTML is escaped before it enters the immersive renderer', () => {
-  assert.equal(escapeTranslationText('<script>"&\'</script>'), '&lt;script&gt;&quot;&amp;&#39;&lt;/script&gt;')
+test('stream events reject malformed state instead of silently counting it complete', () => {
+  assert.deepEqual(decodeTranslationEvent('{"type":"ping"}'), { type: 'ping' })
+  for (const text of ['null', '{"type":"unknown"}', '{"type":"result","index":0,"text":""}', '{"type":"waiting","retryAt":"bad"}']) assert.throws(() => decodeTranslationEvent(text))
 })
 
-test('visible passages are batched, duplicate source texts are coalesced, and cached results are reused', async () => {
+test('a whole README uses one request and streams completed passages immediately', async () => {
   const original = globalThis.fetch
   let calls = 0
+  const events: ReadmeTranslationEvent[] = []
   globalThis.fetch = async (url, init) => {
     calls++
-    assert.equal(url, '/api/translate')
-    const { texts, target } = JSON.parse(String(init?.body))
-    assert.equal(target, 'zh')
-    assert.deepEqual(texts, ['batch-a', 'batch-b'])
-    return Response.json({ translations: ['甲', '乙'], provider: 'bilibili-index-translate' })
+    assert.equal(url, '/api/translate/readme')
+    assert.equal(JSON.parse(String(init?.body)).passages.length, 40)
+    return sse([...Array.from({ length: 40 }, (_, index): ReadmeTranslationEvent => ({ type: 'result', index, text: `译文 ${index}` })), { type: 'done' }])
   }
   try {
-    const signal = new AbortController().signal
-    assert.deepEqual(await Promise.all([
-      translatePassage('batch-a', 'zh', signal), translatePassage('batch-b', 'zh', signal), translatePassage('batch-a', 'zh', signal),
-    ]), ['甲', '乙', '甲'])
-    assert.equal(await translatePassage('batch-a', 'zh', signal), '甲')
+    await requestReadmeTranslation(Array.from({ length: 40 }, (_, index) => ({ index, text: `whole-readme-${index}` })), 'zh', new AbortController().signal, (event) => events.push(event))
     assert.equal(calls, 1)
+    assert.equal(events.filter((event) => event.type === 'result').length, 40)
   } finally { globalThis.fetch = original }
 })
 
-test('cancelled queued passages never contact the provider', async () => {
+test('a broken stream retains completed passages and the next request sends only unfinished work', async () => {
   const original = globalThis.fetch
   let calls = 0
-  globalThis.fetch = async () => { calls++; throw new Error('should not fetch') }
-  try {
-    const controller = new AbortController()
-    const pending = assert.rejects(translatePassage('cancel-before-send', 'zh', controller.signal))
-    controller.abort()
-    await pending
-    await pause(60)
-    assert.equal(calls, 0)
-  } finally { globalThis.fetch = original }
-})
-
-test('cancelling every consumer aborts an active request', async () => {
-  const original = globalThis.fetch
-  let aborted = false
-  let started!: () => void
-  const ready = new Promise<void>((resolve) => { started = resolve })
-  globalThis.fetch = async (_url, init) => new Promise((_resolve, reject) => {
-    init?.signal?.addEventListener('abort', () => { aborted = true; reject(init.signal?.reason) }, { once: true })
-    started()
-  })
-  try {
-    const controller = new AbortController()
-    const pending = assert.rejects(translatePassage('cancel-active', 'en', controller.signal))
-    await ready
-    controller.abort()
-    await pending
-    await pause(10)
-    assert.equal(aborted, true)
-  } finally { globalThis.fetch = original }
-})
-
-test('rate limit metadata reaches the retry controls', async () => {
-  const original = globalThis.fetch
-  globalThis.fetch = async () => Response.json({ error: 'Limited', retryAfter: 15 }, { status: 429 })
-  try {
-    await assert.rejects(translatePassage('limited-source', 'fr', new AbortController().signal), (error: unknown) => error instanceof TranslationRequestError && error.status === 429 && error.retryAfter === 15)
-  } finally { globalThis.fetch = original }
-})
-
-test('different targets never share cached translations', async () => {
-  const original = globalThis.fetch
-  const targets: string[] = []
   globalThis.fetch = async (_url, init) => {
-    const { target } = JSON.parse(String(init?.body))
-    targets.push(target)
-    return Response.json({ translations: [target], provider: 'bilibili-index-translate' })
+    const request = JSON.parse(String(init?.body))
+    if (++calls === 1) return sse([{ type: 'result', index: 0, text: '已完成' }])
+    assert.deepEqual(request.passages, [{ index: 1, text: 'stream-unfinished' }])
+    return sse([{ type: 'result', index: 1, text: '后续完成' }, { type: 'done' }])
   }
   try {
-    const signal = new AbortController().signal
-    assert.deepEqual(await Promise.all([translatePassage('isolate-target', 'de', signal), translatePassage('isolate-target', 'es', signal)]), ['de', 'es'])
-    assert.deepEqual(targets.sort(), ['de', 'es'])
+    const passages = [{ index: 0, text: 'stream-completed' }, { index: 1, text: 'stream-unfinished' }]
+    await assert.rejects(requestReadmeTranslation(passages, 'zh', new AbortController().signal, () => {}), TranslationRequestError)
+    assert.equal(cachedTranslation(passages[0].text, 'zh'), '已完成')
+    const results: string[] = []
+    await requestReadmeTranslation(passages, 'zh', new AbortController().signal, (event) => { if (event.type === 'result') results.push(event.text) })
+    assert.deepEqual(results, ['已完成', '后续完成'])
+    assert.equal(calls, 2)
   } finally { globalThis.fetch = original }
 })
 
-test('one cancelled consumer does not abort another passage in the same batch', async () => {
+test('split UTF-8 and CRLF frames decode without corrupting bilingual text', async () => {
   const original = globalThis.fetch
-  let started!: () => void
-  let finish!: (response: Response) => void
-  let aborted = false
-  const ready = new Promise<void>((resolve) => { started = resolve })
-  globalThis.fetch = async (_url, init) => new Promise((resolve) => {
-    finish = resolve
-    init?.signal?.addEventListener('abort', () => { aborted = true })
-    started()
-  })
+  const bytes = new TextEncoder().encode('data: {"type":"result","index":7,"text":"中文😀"}\r\n\r\ndata: {"type":"done"}\r\n\r\n')
+  globalThis.fetch = async () => new Response(new ReadableStream({ start(controller) { bytes.forEach((byte) => controller.enqueue(new Uint8Array([byte]))); controller.close() } }), { headers: { 'Content-Type': 'text/event-stream' } })
   try {
-    const controller = new AbortController()
-    const pending = assert.rejects(translatePassage('shared-cancel', 'ko', controller.signal))
-    const other = translatePassage('shared-keep', 'ko', new AbortController().signal)
-    await ready
-    controller.abort()
-    await pending
-    assert.equal(aborted, false)
-    finish(Response.json({ translations: ['취소', '유지'], provider: 'bilibili-index-translate' }))
-    assert.equal(await other, '유지')
+    let translated = ''
+    await requestReadmeTranslation([{ index: 7, text: 'utf8-source' }], 'ja', new AbortController().signal, (event) => { if (event.type === 'result') translated = event.text })
+    assert.equal(translated, '中文😀')
+  } finally { globalThis.fetch = original }
+})
+
+test('outage events retain completed results without pretending the remaining passages failed', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => sse([{ type: 'result', index: 0, text: '保存' }, { type: 'unavailable', retryAt: Date.now() + 1000 }])
+  try {
+    const events: ReadmeTranslationEvent[] = []
+    await requestReadmeTranslation([{ index: 0, text: 'outage-complete' }, { index: 1, text: 'outage-pending' }], 'ko', new AbortController().signal, (event) => events.push(event))
+    assert.equal(events.some((event) => event.type === 'failed'), false)
+    assert.equal(cachedTranslation('outage-complete', 'ko'), '保存')
+    assert.equal(cachedTranslation('outage-pending', 'ko'), undefined)
+  } finally { globalThis.fetch = original }
+})
+
+test('a done event cannot hide missing results or an unexpected passage index', async () => {
+  const original = globalThis.fetch
+  try {
+    for (const event of [{ type: 'done' } as const, { type: 'result', index: 99, text: 'wrong passage' } as const]) {
+      globalThis.fetch = async () => sse([event])
+      await assert.rejects(requestReadmeTranslation([{ index: 0, text: 'missing-source' }], 'fr', new AbortController().signal, () => {}), TranslationRequestError)
+    }
   } finally { globalThis.fetch = original }
 })

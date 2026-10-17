@@ -1,126 +1,133 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { TranslationSession, type TranslationProgress } from './translationSession.ts'
-import { TranslationRequestError } from './translation.ts'
+import type { ReadmeTranslationEvent } from '../../shared/translation.ts'
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (error: unknown) => void
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
-  return { promise, resolve, reject }
-}
-
-test('README session starts only on request and translates current reading position first', async () => {
-  const calls: string[] = []
-  const jobs = Array.from({ length: 4 }, () => deferred<string>())
-  const results: number[] = []
-  let progress!: TranslationProgress
-  const reader = new TranslationSession({
-    texts: ['a', 'b', 'c', 'd'],
-    translate: (text) => { calls.push(text); return jobs['abcd'.indexOf(text)].promise },
-    onResult: (index) => results.push(index),
-    onProgress: (next) => { progress = next },
-    priority: (index) => [3, 2, 0, 1][index],
-  })
-  assert.deepEqual(calls, [])
-  reader.resume()
-  assert.deepEqual(calls, ['c', 'd'])
-  assert.equal(progress.pending, 2)
-  jobs[2].resolve('C')
-  await tick()
-  assert.deepEqual(calls, ['c', 'd', 'b'])
-  assert.equal(progress.completed, 1)
-  jobs[3].resolve('D'); jobs[1].resolve('B')
-  await tick()
-  jobs[0].resolve('A')
-  await tick()
-  assert.equal(progress.completed, 4)
-  assert.equal(progress.pending, 0)
-  assert.equal(new Set(results).size, 4)
-  reader.dispose()
-})
-
-test('pause and original view retain results; resume schedules only unfinished passages', async () => {
-  const calls: string[] = []
-  const jobs = Array.from({ length: 4 }, () => deferred<string>())
-  let progress!: TranslationProgress
-  const reader = new TranslationSession({ texts: ['a', 'b', 'c', 'd'], translate: (text) => {
-    calls.push(text); return jobs['abcd'.indexOf(text)].promise
-  }, onResult: () => {}, onProgress: (next) => { progress = next } })
-  reader.resume()
-  reader.pause()
-  jobs[0].resolve('A'); jobs[1].resolve('B')
-  await tick()
-  assert.deepEqual(calls, ['a', 'b'])
-  assert.equal(progress.completed, 2)
-  reader.resume()
-  assert.deepEqual(calls, ['a', 'b', 'c', 'd'])
-  jobs[2].resolve('C'); jobs[3].resolve('D')
-  await tick()
-  reader.pause(); reader.resume()
-  assert.equal(calls.length, 4)
-  assert.equal(progress.completed, 4)
-  reader.dispose()
-})
-
-test('retry only schedules failed passages and keeps successful results in place', async () => {
-  const calls: string[] = []
-  let healthy = false
+function setup() {
   let progress!: TranslationProgress
   const results: string[] = []
-  const reader = new TranslationSession({ texts: ['a', 'b', 'c'], translate: async (text) => {
-    calls.push(text)
-    if (text === 'b' && !healthy) throw new Error('Unavailable')
-    return text.toUpperCase()
-  }, onResult: (_index, text) => results.push(text), onProgress: (next) => { progress = next } })
-  reader.resume()
-  await tick()
-  assert.equal(progress.completed, 2)
-  assert.equal(progress.failed, 1)
-  healthy = true
-  reader.retry()
-  await tick()
-  assert.deepEqual(calls, ['a', 'b', 'c', 'b'])
-  assert.deepEqual(results, ['A', 'C', 'B'])
-  assert.equal(progress.completed, 3)
-  assert.equal(progress.failed, 0)
-  reader.dispose()
-})
+  return { results, get progress() { return progress }, onResult: (_index: number, text: string) => results.push(text), onProgress: (next: TranslationProgress) => { progress = next } }
+}
 
-test('leaving a README aborts in-flight work and suppresses late results/progress', async () => {
-  const job = deferred<string>()
-  let signal!: AbortSignal
-  let results = 0
-  let reports = 0
-  const reader = new TranslationSession({ texts: ['a', 'b', 'c'], translate: (_text, next) => {
-    signal = next; return job.promise
-  }, onResult: () => { results++ }, onProgress: () => { reports++ } })
-  reader.resume()
-  reader.dispose()
-  const before = reports
-  assert.equal(signal.aborted, true)
-  job.resolve('late result')
-  await tick()
-  assert.equal(results, 0)
-  assert.equal(reports, before)
-})
-
-test('rate limits retain queued work and block retries until the cooldown ends', async () => {
-  let progress!: TranslationProgress
+test('one request owns the whole README, sorted by the current reading position', async () => {
+  const state = setup()
   let calls = 0
-  const reader = new TranslationSession({ texts: ['a', 'b', 'c'], translate: async () => {
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b', 'c'], priority: (index) => [2, 1, 0][index], request: async (passages, _signal, emit) => {
     calls++
-    throw new TranslationRequestError(429, 60)
-  }, onResult: () => {}, onProgress: (next) => { progress = next } })
+    assert.deepEqual(passages.map((passage) => passage.index), [2, 1, 0])
+    passages.forEach((passage) => emit({ type: 'result', index: passage.index, text: passage.text.toUpperCase() }))
+    emit({ type: 'done' })
+  } })
+  assert.equal(calls, 0)
   reader.resume()
   await tick()
-  assert.equal(calls, 2)
-  assert.ok(progress.retryAt > Date.now())
-  reader.retry()
-  await tick()
-  assert.equal(calls, 2)
-  assert.equal(progress.failed, 2)
-  assert.equal(progress.total, 3)
+  assert.equal(calls, 1)
+  assert.equal(state.progress.completed, 3)
+  assert.equal(state.progress.status, 'complete')
   reader.dispose()
+})
+
+test('network loss reconnects only unfinished passages and does not duplicate completed output', async () => {
+  const state = setup()
+  let calls = 0
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b'], reconnectDelay: 1, request: async (passages, _signal, emit) => {
+    if (++calls === 1) { emit({ type: 'result', index: 0, text: 'A' }); throw new TypeError('Network failed') }
+    assert.deepEqual(passages.map((passage) => passage.index), [1])
+    emit({ type: 'result', index: 1, text: 'B' }); emit({ type: 'done' })
+  } })
+  reader.resume()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  assert.deepEqual(state.results, ['A', 'B'])
+  assert.equal(calls, 2)
+  assert.equal(state.progress.failed, 0)
+  reader.dispose()
+})
+
+test('an outage stops bounded reconnects and retains unfinished work for explicit recovery', async () => {
+  const state = setup()
+  let calls = 0
+  let healthy = false
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b'], reconnectDelay: 1, request: async (passages, _signal, emit) => {
+    calls++
+    if (!healthy) throw new TypeError('offline')
+    passages.forEach((passage) => emit({ type: 'result', index: passage.index, text: passage.text }))
+  } })
+  reader.resume()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  assert.equal(calls, 3)
+  assert.equal(state.progress.status, 'unavailable')
+  assert.equal(state.progress.failed, 0)
+  healthy = true
+  reader.reconnect()
+  await tick()
+  assert.equal(state.progress.completed, 2)
+  reader.dispose()
+})
+
+test('pause cancels a stream and resumes only unfinished work', async () => {
+  const state = setup()
+  let calls = 0
+  let emit!: (event: ReadmeTranslationEvent) => void
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b'], request: async (passages, signal, onEvent) => {
+    calls++
+    emit = onEvent
+    if (calls === 1) { emit({ type: 'result', index: 0, text: 'A' }); await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })) }
+    else { assert.deepEqual(passages.map((passage) => passage.index), [1]); emit({ type: 'result', index: 1, text: 'B' }) }
+  } })
+  reader.resume(); await tick(); reader.pause(); await tick()
+  assert.equal(state.progress.completed, 1)
+  assert.equal(calls, 1)
+  reader.resume(); await tick()
+  assert.deepEqual(state.results, ['A', 'B'])
+  reader.dispose()
+})
+
+test('coming back online replaces a stalled connection with only unfinished passages', async () => {
+  const state = setup()
+  let calls = 0
+  let firstSignal!: AbortSignal
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b'], request: async (passages, signal, emit) => {
+    if (++calls === 1) {
+      firstSignal = signal
+      emit({ type: 'result', index: 0, text: 'A' })
+      await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+    } else {
+      assert.deepEqual(passages.map((passage) => passage.index), [1])
+      emit({ type: 'result', index: 1, text: 'B' })
+    }
+  } })
+  reader.resume(); await tick(); reader.reconnect(); await tick()
+  assert.equal(firstSignal.aborted, true)
+  assert.equal(calls, 2)
+  assert.deepEqual(state.results, ['A', 'B'])
+  assert.equal(state.progress.status, 'complete')
+  reader.dispose()
+})
+
+test('service cooldown is explicit, with no browser passage retry storm', async () => {
+  const state = setup()
+  let calls = 0
+  const reader = new TranslationSession({ ...state, texts: ['a', 'b', 'c'], request: async (_passages, _signal, emit) => {
+    calls++; emit({ type: 'result', index: 0, text: 'A' }); emit({ type: 'waiting', retryAt: Date.now() + 60_000 }); emit({ type: 'unavailable', retryAt: Date.now() + 60_000 })
+  } })
+  reader.resume(); await tick(); reader.retry(); reader.resume(); await tick()
+  assert.equal(calls, 1)
+  assert.equal(state.progress.completed, 1)
+  assert.equal(state.progress.failed, 0)
+  assert.equal(state.progress.status, 'unavailable')
+  reader.dispose()
+})
+
+test('leaving a README suppresses late results and cancels its server stream', async () => {
+  const state = setup()
+  let emit!: (event: ReadmeTranslationEvent) => void
+  let signal!: AbortSignal
+  const reader = new TranslationSession({ ...state, texts: ['a'], request: async (_passages, next, send) => {
+    signal = next; emit = send
+    await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
+  } })
+  reader.resume(); reader.dispose(); emit({ type: 'result', index: 0, text: 'late' }); await tick()
+  assert.equal(signal.aborted, true)
+  assert.deepEqual(state.results, [])
 })

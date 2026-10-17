@@ -1,7 +1,12 @@
+import { TranslationGate } from './translationGate.ts'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Hono } from 'hono'
-import { createTranslationRoutes, INDEX_TRANSLATE_MODEL, INDEX_TRANSLATE_URL, parseTranslationOutput, parseTranslationRequest, TranslationService, TranslationError } from './translation.ts'
+import { createTranslationRoutes, INDEX_TRANSLATE_MODEL, INDEX_TRANSLATE_URL, parseTranslationOutput, parseTranslationRequest, TranslationService as BaseTranslationService, TranslationError } from './translation.ts'
+
+class TranslationService extends BaseTranslationService {
+  constructor(fetcher: typeof fetch) { super(fetcher, new TranslationGate(0)) }
+}
 
 const completion = (values: Record<string, string>, finish = 'stop') => Response.json({
   choices: [{ message: { content: JSON.stringify(values) }, finish_reason: finish }],
@@ -193,7 +198,7 @@ test('persistent repetition fails bounded recovery and cannot poison the cache',
   assert.equal(calls, successfulCalls)
 })
 
-test('an unsuccessful batch does not commit its successfully translated earlier pieces', async () => {
+test('a failed batch retains only independently validated earlier pieces', async () => {
   let healthy = false
   let sawFirstAgain = false
   const first = 'A small first passage.'
@@ -209,7 +214,7 @@ test('an unsuccessful batch does not commit its successfully translated earlier 
   await assert.rejects(service.translate({ target: 'en', texts: [first, second] }), TranslationError)
   healthy = true
   assert.deepEqual(await service.translate({ target: 'en', texts: [first, second] }), [first, second])
-  assert.equal(sawFirstAgain, true)
+  assert.equal(sawFirstAgain, false)
 })
 
 test('cancellation during recovery stops additional upstream calls', async () => {

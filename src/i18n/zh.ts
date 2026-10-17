@@ -33,6 +33,9 @@ export const zh: Record<keyof typeof en, string> = {
   'translation.failedCount': "{count} 段待重试",
   'translation.progressAria': "README 翻译进度",
   'translation.empty': '此 README 没有可翻译的正文',
+  'translation.reconnect': "继续未完成内容",
+  'translation.serviceUnavailable': "翻译服务暂不可用 · 已保留完成的译文",
+  'translation.recovering': "服务繁忙 · {seconds} 秒后继续",
   // ---------------------------------------------------------------- app shell
   'app.title.feed': 'Orbit — 开源，正在发生',
   'app.title.saved': '阅读清单 · Orbit',

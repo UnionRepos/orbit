@@ -34,6 +34,9 @@ export const en = {
   'translation.failedCount': "{count} need a retry",
   'translation.progressAria': "README translation progress",
   'translation.empty': 'No prose to translate in this README',
+  'translation.reconnect': "Resume unfinished",
+  'translation.serviceUnavailable': "Translation service unavailable · completed text is kept",
+  'translation.recovering': "Service busy · continuing in {seconds}s",
   // ---------------------------------------------------------------- app shell
   'app.title.feed': 'Orbit — open source, in motion',
   'app.title.saved': 'Reading list · Orbit',

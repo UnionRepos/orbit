@@ -21,7 +21,7 @@ interface TranslationContextValue extends TranslationProgress {
 }
 const TranslationContext = createContext<TranslationContextValue | null>(null)
 const PREFERENCE_KEY = 'orbit:translation:v1'
-const EMPTY: TranslationProgress = { total: 0, completed: 0, pending: 0, failed: 0, retryAt: 0 }
+const EMPTY: TranslationProgress = { total: 0, completed: 0, pending: 0, failed: 0, retryAt: 0, status: 'idle' }
 
 /** Mounted inside one README, so leaving it cancels work and resets activation. */
 export function TranslationProvider({ children, defaultTarget = 'zh' }: { children: ReactNode; defaultTarget?: TranslationLanguage }) {

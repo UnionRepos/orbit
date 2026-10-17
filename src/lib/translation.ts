@@ -1,10 +1,5 @@
+import type { ReadmePassage, ReadmeTranslationEvent, TranslationLanguage } from '../../shared/translation.ts'
 import { splitTranslationText } from '../../shared/translationChunks.ts'
-import {
-  TRANSLATION_MAX_BATCH,
-  TRANSLATION_MAX_TOTAL,
-  type TranslationLanguage,
-  type TranslationResponse,
-} from '../../shared/translation.ts'
 
 export class TranslationRequestError extends Error {
   status: number
@@ -16,96 +11,104 @@ export class TranslationRequestError extends Error {
   }
 }
 
-interface Job {
-  text: string
-  target: TranslationLanguage
-  signal: AbortSignal
-  resolve: (text: string) => void
-  reject: (reason: unknown) => void
-}
-
+// Completed passages survive navigation and stream reconnects in this tab.
 const cache = new Map<string, { text: string; expires: number }>()
-let queue: Job[] = []
-let active = 0
-let timer: ReturnType<typeof setTimeout> | undefined
-const cacheKey = (text: string, target: TranslationLanguage) => JSON.stringify([target, text])
+const key = (text: string, target: TranslationLanguage) => JSON.stringify([target, text])
 
-/** Coalesce visible passages across components; at most two requests at once. */
-export function translatePassage(text: string, target: TranslationLanguage, signal: AbortSignal): Promise<string> {
-  if (signal.aborted) return Promise.reject(signal.reason)
-  if (!text.trim()) return Promise.resolve(text)
-  const key = cacheKey(text, target)
-  const hit = cache.get(key)
-  if (hit && hit.expires > Date.now()) return Promise.resolve(hit.text)
-  return new Promise((resolve, reject) => {
-    const onAbort = () => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-    queue.push({
-      text, target, signal,
-      resolve: (value) => { signal.removeEventListener('abort', onAbort); resolve(value) },
-      reject: (reason) => { signal.removeEventListener('abort', onAbort); reject(reason) },
-    })
-    schedule()
-  })
+export function cachedTranslation(text: string, target: TranslationLanguage): string | undefined {
+  const entry = cache.get(key(text, target))
+  return entry && entry.expires > Date.now() ? entry.text : undefined
 }
 
-function schedule() {
-  if (!timer && queue.length && active < 2) timer = setTimeout(() => { timer = undefined; drain() }, 35)
+export function decodeTranslationEvent(data: string): ReadmeTranslationEvent {
+  const event = JSON.parse(data) as ReadmeTranslationEvent
+  if (!event || typeof event !== 'object') throw new TranslationRequestError(502)
+  if (event.type === 'done' || event.type === 'ping') return event
+  if ((event.type === 'waiting' || event.type === 'unavailable') && Number.isFinite(event.retryAt) && event.retryAt >= 0) return event
+  if ((event.type === 'start' || event.type === 'failed') && Number.isInteger(event.index)) return event
+  if (event.type === 'result' && Number.isInteger(event.index) && typeof event.text === 'string' && event.text.trim()) return event
+  throw new TranslationRequestError(502)
 }
 
-function drain() {
-  queue = queue.filter((job) => !job.signal.aborted)
-  while (active < 2 && queue.length) {
-    const first = queue.shift()!
-    const batch = [first]
-    let length = first.text.length
-    for (let index = 0; index < queue.length && batch.length < TRANSLATION_MAX_BATCH;) {
-      const job = queue[index]
-      if (job.target === first.target && length + job.text.length <= TRANSLATION_MAX_TOTAL) {
-        batch.push(...queue.splice(index, 1))
-        length += job.text.length
-      } else index++
-    }
-    active++
-    void sendBatch(batch).finally(() => { active--; schedule() })
+/** One incremental README request. The server owns chunking, pacing and retries. */
+export async function requestReadmeTranslation(
+  passages: ReadmePassage[], target: TranslationLanguage, signal: AbortSignal,
+  emit: (event: ReadmeTranslationEvent) => void,
+): Promise<void> {
+  signal.throwIfAborted()
+  const missing: ReadmePassage[] = []
+  for (const passage of passages) {
+    const hit = cachedTranslation(passage.text, target)
+    if (hit !== undefined) emit({ type: 'result', index: passage.index, text: hit })
+    else missing.push(passage)
   }
-}
-
-async function sendBatch(jobs: Job[]) {
+  if (!missing.length) { emit({ type: 'done' }); return }
+  const requested = new Map(missing.map((passage) => [passage.index, passage.text]))
+  const delivered = new Set<number>()
   const controller = new AbortController()
-  const cancelIfUnused = () => { if (jobs.every((job) => job.signal.aborted)) controller.abort() }
-  jobs.forEach((job) => job.signal.addEventListener('abort', cancelIfUnused))
-  const texts = [...new Set(jobs.map((job) => job.text))]
+  const combined = AbortSignal.any([signal, controller.signal])
+  const firstByteTimeout = setTimeout(() => controller.abort(new DOMException('Translation timed out', 'TimeoutError')), 45_000)
+  let response: Response
   try {
-    cancelIfUnused()
-    const response = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ target: jobs[0].target, texts }),
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(50_000)]),
+    response = await fetch('/api/translate/readme', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ target, passages: missing }), signal: combined,
     })
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({})) as { retryAfter?: number }
-      throw new TranslationRequestError(response.status, body.retryAfter ?? 0)
+  } finally { clearTimeout(firstByteTimeout) }
+  if (!response.ok) {
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    let body: { retryAfter?: number }
+    try { body = await response.json().catch(() => ({})) as { retryAfter?: number } } finally { clearTimeout(timeout) }
+    throw new TranslationRequestError(response.status, body.retryAfter ?? (Number(response.headers.get('retry-after')) || 0))
+  }
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new TranslationRequestError(502)
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let terminal = false
+  try {
+    while (true) {
+      // Heartbeats cover provider cooldowns; only an actually silent stream times out.
+      const idleTimeout = setTimeout(() => controller.abort(new DOMException('Translation stream timed out', 'TimeoutError')), 45_000)
+      let chunk: ReadableStreamReadResult<Uint8Array>
+      try { chunk = await reader.read() } finally { clearTimeout(idleTimeout) }
+      signal.throwIfAborted()
+      buffer = (buffer + decoder.decode(chunk.value, { stream: !chunk.done })).replace(/\r\n/g, '\n')
+      if (buffer.length > 2_000_000) throw new TranslationRequestError(502)
+      let end: number
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const frame = buffer.slice(0, end)
+        buffer = buffer.slice(end + 2)
+        const data = frame.split('\n').filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart()).join('\n')
+        if (!data) continue
+        const event = decodeTranslationEvent(data)
+        if ('index' in event && !requested.has(event.index)) throw new TranslationRequestError(502)
+        if (event.type === 'result') {
+          if (delivered.has(event.index)) continue
+          delivered.add(event.index)
+          cache.set(key(requested.get(event.index)!, target), { text: event.text, expires: Date.now() + 24 * 60 * 60 * 1000 })
+          while (cache.size > 512) cache.delete(cache.keys().next().value!)
+        }
+        if (event.type === 'done') {
+          const accounted = delivered.size
+          // Missing results must be explicitly marked failed, never silently completed.
+          if (accounted !== requested.size) throw new TranslationRequestError(502)
+          terminal = true
+        }
+        if (event.type === 'failed') delivered.add(event.index)
+        if (event.type === 'unavailable') terminal = true
+        if (event.type !== 'ping') emit(event)
+      }
+      if (chunk.done) break
     }
-    const payload = await response.json() as TranslationResponse
-    if (!Array.isArray(payload.translations) || payload.translations.length !== texts.length ||
-        payload.translations.some((text) => typeof text !== 'string' || !text.trim())) {
-      throw new TranslationRequestError(502)
-    }
-    texts.forEach((text, index) => cache.set(cacheKey(text, jobs[0].target), {
-      text: payload.translations[index], expires: Date.now() + 24 * 60 * 60 * 1000,
-    }))
-    while (cache.size > 512) cache.delete(cache.keys().next().value!)
-    jobs.forEach((job) => { if (!job.signal.aborted) job.resolve(payload.translations[texts.indexOf(job.text)]) })
-  } catch (error) {
-    jobs.forEach((job) => job.reject(error))
+    if (!terminal) throw new TranslationRequestError(502)
   } finally {
-    jobs.forEach((job) => job.signal.removeEventListener('abort', cancelIfUnused))
+    controller.abort()
+    await reader.cancel().catch(() => {})
+    reader.releaseLock()
   }
 }
 
-/** The same lossless byte-aware boundaries are enforced again at the proxy. */
 export function splitPassage(text: string, limit = 1200): string[] {
   return splitTranslationText(text.trim(), limit)
 }

@@ -247,45 +247,46 @@ notes, and interface labels remain outside the translation session. A new README
 starts in its original language; target and display preferences stay on this device.
 Leaving the detail page cancels its pending work.
 
-The reader prioritizes passages near your current position, then works through
-the rest of the document with a progress bar. **Pause** stops new work while
-letting in-flight passages finish; **Resume** continues where you left off.
-Original view also pauses new work. Failed passages retain their source and can
-be retried individually or together, without disturbing successful translations.
-Lists, tables, heading anchors, links, images, inline code and code blocks retain
-their structure. Incoming translations preserve the paragraph you are reading.
+The reader opens one resumable SSE request for the README instead of running
+per-paragraph HTTP jobs in the browser. The server owns chunking and batches short
+passages, using one provider lane with at least 750 ms between completed requests.
+The lane and provider `Retry-After` cooldown are shared by streams in the same
+server instance. Server instances/Worker isolates do not share this in-memory lane.
+
+Validated passages appear as soon as they finish. A dropped browser connection
+reconnects at most twice and sends only unfinished passages. Completed passages
+remain available in the current tab and are cached on the server, including
+validated internal pieces of a long paragraph. Pause and Original view abort the
+current stream; resuming reuses that work. Leaving the detail page cancels its
+stream. Lists, tables, code, links, images and reading position stay intact.
 
 Translations use Bilibili's [free Index-Translate public API](https://github.com/bilibili/Index-Translate),
 with `Index-Translate-35B-A3B` at
 `https://index-translate.bilibili.com/v1/chat/completions`. No API key or extra
-environment variables are required. README prose is sent to Bilibili
-through Orbit's same-origin `POST /api/translate` endpoint; the browser never
-calls the provider directly. The integration works with the Node server and
-Cloudflare Worker.
+environment variables are required. Only README prose is sent to Bilibili through
+Orbit. Both the Node server and Cloudflare Worker support the streaming route.
 
-The proxy validates and bounds requests (six passages, 2,400 characters per
-passage, 6,000 total), limits concurrency and request rate, times out stalled
-requests, and retains a bounded in-memory cache for up to 24 hours. The browser
-also caches recent translations in memory. Provider failures preserve the
-original text and expose a retry control, including a countdown when rate
-limited. Translations are machine-generated and depend on public-service
-availability.
+The streaming endpoint `POST /api/translate/readme` accepts up to 1,200 uniquely
+indexed passages and 250,000 total characters, in a body limited to 1 MB. It emits
+`start`, `result`, `failed`, `waiting`, `unavailable`, `done`, and heartbeat events.
+Temporary provider/network failures receive at most two paced retries in the
+server workflow. A sustained outage stops with explicit resumable state instead
+of marking every remaining paragraph failed or looping forever. Returning online
+can resume unfinished work; a manual Resume control remains available.
 
-Long documents are processed as ordered pieces, never as a single model prompt.
-Both browser and proxy use sentence/word boundaries with a 1,200-character and
-1,800-byte UTF-8 chunk ceiling. The proxy packs pieces under conservative output
-expansion and context estimates, reserves context overhead, and requests at most
-4,096 output tokens within the public endpoint's 16,384-token context window.
-The HTTP envelope limits above are independent of the smaller upstream batches.
+Malformed translations are isolated so valid neighboring results are retained.
+Three consecutive quality failures stop the workflow instead of amplifying a
+model failure into hundreds of requests. The streaming workflow limits each batch
+to one quality-split level and eight upstream calls. The original JSON batch API
+`POST /api/translate` is retained for diagnostics, with its six-passage, 6,000-total-
+character envelope; it is no longer used by the reader.
 
-A `finish_reason: stop` response still has to pass per-passage checks: complete
-JSON keys, preserved code/link placeholders, script-aware compression/expansion,
-repetition relative to the source, and token-usage limits when reported. Suspect
-results are retried in smaller groups or pieces, up to three split levels and
-24 upstream calls within one shared 45-second deadline. Rate limits and transport
-errors are surfaced immediately. Nothing from an unsuccessful HTTP batch is
-committed to the translation cache; the original remains available. These checks
-are conservative heuristics, not a guarantee of semantic translation accuracy.
+Long documents are split on sentence/word boundaries with a 1,200-character and
+1,800-byte UTF-8 ceiling. Output expansion/context budgets reserve room within the
+public endpoint's 16,384-token context and cap output at 4,096 tokens. Every result
+still passes structural, placeholder, script-aware compression, repetition, and
+reported token-usage checks; `finish_reason: stop` alone is not trusted. These are
+conservative heuristics, not a guarantee of semantic translation accuracy.
 
 Example request:
 

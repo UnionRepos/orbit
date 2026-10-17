@@ -29,3 +29,18 @@ export interface TranslationResponse {
   translations: string[]
   provider: 'bilibili-index-translate'
 }
+
+export interface ReadmePassage { index: number; text: string }
+export type ReadmeTranslationEvent =
+  | { type: 'start'; index: number }
+  | { type: 'result'; index: number; text: string }
+  | { type: 'failed'; index: number }
+  | { type: 'waiting'; retryAt: number }
+  | { type: 'unavailable'; retryAt: number }
+  | { type: 'done' }
+  | { type: 'ping' }
+
+export interface ReadmeTranslationRequest {
+  target: TranslationLanguage
+  passages: ReadmePassage[]
+}

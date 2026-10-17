@@ -1,8 +1,7 @@
-import { joinTranslationPieces } from '../../shared/translationChunks.ts'
 import { useEffect, useLayoutEffect, useMemo, useRef, type MouseEventHandler } from 'react'
 import { useTranslation } from '../context/TranslationContext.tsx'
 import { useI18n } from '../i18n/index.ts'
-import { splitPassage, translatePassage } from '../lib/translation.ts'
+import { requestReadmeTranslation } from '../lib/translation.ts'
 import { TranslationSession } from '../lib/translationSession.ts'
 import { collectTranslationPassages, preserveReadingPosition, removeTranslations, showTranslation } from '../lib/translationDom.ts'
 
@@ -31,12 +30,7 @@ export function ImmersiveContent({ html, className = '', onClick }: {
     const passages = collectTranslationPassages(root)
     const reader = new TranslationSession({
       texts: passages.map((passage) => passage.text),
-      translate: async (text, signal) => {
-        const chunks = splitPassage(text)
-        const translated: string[] = []
-        for (const chunk of chunks) translated.push(await translatePassage(chunk, target, signal))
-        return joinTranslationPieces(chunks, translated)
-      },
+      request: (passages, signal, emit) => requestReadmeTranslation(passages, target, signal, emit),
       priority: (index) => {
         const rect = passages[index].original.parentElement!.getBoundingClientRect()
         const head = root.closest('.readme-card')?.querySelector('.readme-chrome')?.getBoundingClientRect().bottom ?? 0
@@ -69,10 +63,16 @@ export function ImmersiveContent({ html, className = '', onClick }: {
         passage.translated.appendChild(retry)
         passage.translated.hidden = false
       }),
-      onProgress: report,
+      onProgress: (progress) => {
+        if (progress.status === 'unavailable') root.querySelectorAll<HTMLElement>('.translation-feedback.is-loading').forEach((node) => { node.hidden = true })
+        report(progress)
+      },
     })
     session.current = reader
+    const reconnect = () => reader.reconnect()
+    window.addEventListener('online', reconnect)
     return () => {
+      window.removeEventListener('online', reconnect)
       reader.dispose()
       session.current = null
       preserveReadingPosition(root, () => removeTranslations(passages))
@@ -81,7 +81,10 @@ export function ImmersiveContent({ html, className = '', onClick }: {
   }, [enabled, target, html, report, setPaused])
 
   useEffect(() => {
-    if (paused || mode === 'original') session.current?.pause()
+    if (paused || mode === 'original') {
+      session.current?.pause()
+      ref.current?.querySelectorAll<HTMLElement>('.translation-feedback.is-loading').forEach((node) => { node.hidden = true })
+    }
     else session.current?.resume()
   }, [enabled, paused, mode, target, html])
 

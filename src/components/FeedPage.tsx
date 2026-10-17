@@ -41,8 +41,13 @@ export function FeedPage({ route }: { route: Route }) {
   const scrollKey = useMemo(() => routeScrollKey(route), [route])
 
   // Keep the discovery list scrolled where the user left it when they come
-  // back from a project page.
-  useScrollRestore(scrollKey, feed.status !== 'loading')
+  // back from a project page. Only the first page is fetched on mount, so the
+  // restore may need to pull further pages to reach a deep offset.
+  const restoreFeed = useMemo(
+    () => ({ hasMore: feed.hasMore, loadMore: feed.loadMore }),
+    [feed.hasMore, feed.loadMore],
+  )
+  useScrollRestore(scrollKey, feed.status !== 'loading', restoreFeed)
 
   useEffect(() => {
     if (!sheetOpen) return
